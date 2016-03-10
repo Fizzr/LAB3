@@ -85,7 +85,11 @@ public class CreateGeos
         laser.setLocalTranslation(Util.LASER_TRANSLATION);
         laser.setCullHint(Spatial.CullHint.Always);
         
+        Node cannonballStartNode = new Node("cannonballStartNode");
+        cannonballStartNode.setLocalTranslation(0, 0, -Util.CANNON_BARREL_LENGTH);
+        
         Node cannonNode = new Node("Cannon");
+        cannonNode.attachChild(cannonballStartNode);
         cannonNode.attachChild(cannon);
         cannonNode.attachChild(base);
         cannonNode.attachChild(plate);
@@ -130,14 +134,15 @@ public class CreateGeos
         return can;
     }
     
-    public Geometry createcannonball(Quaternion rotation)
+    public Geometry createcannonball(Node playerNode)
     {
         Sphere c = new Sphere(Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RADIUS);
         Geometry cBall = new Geometry("cannonball", c);
         Material matC = new Material (assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         matC.setColor("Color", ColorRGBA.Gray);
         cBall.setMaterial(matC);
-        cBall.setLocalRotation(rotation);
+        cBall.setLocalRotation(playerNode.getLocalRotation());
+        cBall.setLocalTranslation(playerNode.getChild("cannonballStartNode").getWorldTranslation());
         return cBall;
         
     }

@@ -99,7 +99,7 @@ public class ServerMain extends SimpleApplication
                 conn.setAttribute("aliveMessages", 0);
                 conn.setAttribute("ready", false);
                 conn.send(new ConnectionMessage(true));
-                conn.send(new CansMessage(canNode.getChildren()));
+                conn.send(new CansMessage(canNode));
             } else
             {
                 conn.send(new ConnectionMessage(false, "Already playing"));
@@ -249,7 +249,7 @@ public class ServerMain extends SimpleApplication
             }
             if (m instanceof ShootMessage)
             {
-                HitMessage message = (HitMessage) m;
+                ShootMessage message = (ShootMessage) m;
                 server.broadcast(Filters.notEqualTo(source), message);
             }
         }

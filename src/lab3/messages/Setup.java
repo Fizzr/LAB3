@@ -61,5 +61,13 @@ public class Setup
             this.connect = connect;
             this.messaage = message;
         }
+        public boolean getConnect()
+        {
+            return this.connect;
+        }
+        public String getMessage()
+        {
+            return this.messaage;
+        }
     }
 }

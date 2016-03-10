@@ -89,6 +89,9 @@ public class Util
     public static int CLIENT_LOADING = 1;
     public static int CLIENT_WAITING = 2;
     public static int CLIENT_PLAYIING = 3;
+    public static int CLIENT_DECLINED = 4;
+    //GAME
+    public static int MAX_PLAYERS = 8;
     
     public static void initMessages()
     {
