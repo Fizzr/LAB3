@@ -38,19 +38,28 @@ public class Setup
     }
     
     @Serializable
-    public static class InitializationMessage extends AbstractMessage
+    public static class StartMessage extends AbstractMessage
     {
-        private long seed;
-        public InitializationMessage()
+        public StartMessage()
         {
         }
-        public InitializationMessage(long seed)
+    }
+    @Serializable
+    public static class ConnectionMessage extends AbstractMessage
+    {
+        private boolean connect;
+        private String messaage;
+        public ConnectionMessage()
         {
-            this.seed = seed;
         }
-        public long getSeed()
+        public ConnectionMessage(boolean connect)
         {
-            return this.seed;
+            this.connect = connect;
+        }
+        public ConnectionMessage(boolean connect, String message)
+        {
+            this.connect = connect;
+            this.messaage = message;
         }
     }
 }

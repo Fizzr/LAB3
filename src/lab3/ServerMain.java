@@ -7,6 +7,7 @@ package lab3;
 import com.jme3.app.SimpleApplication;
 import com.jme3.collision.CollisionResults;
 import com.jme3.network.ConnectionListener;
+import com.jme3.network.Filters;
 import com.jme3.network.HostedConnection;
 import com.jme3.network.Message;
 import com.jme3.network.MessageListener;
@@ -21,6 +22,7 @@ import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
@@ -96,22 +98,31 @@ public class ServerMain extends SimpleApplication
             {
                 conn.setAttribute("aliveMessages", 0);
                 conn.setAttribute("ready", false);
-                conn.send(new InitializationMessage(seed));
+                conn.send(new ConnectionMessage(true));
+                conn.send(new CansMessage(canNode.getChildren()));
             } else
             {
+                conn.send(new ConnectionMessage(false, "Already playing"));
                 conn.close("Already playing");
             }
         }
 
         public void connectionRemoved(Server server, HostedConnection conn)
         {
-            if ((Boolean) conn.getAttribute("ready") == true)
+            if (STATE == Util.SERVER_IDLE)
             {
-                readyPlayers--;
-                server.broadcast(new ReadyMessage(readyPlayers, server.getConnections().size()));
-            } else if (server.getConnections().size() == readyPlayers)
+                if ((Boolean) conn.getAttribute("ready") == true)
+                {
+                    readyPlayers--;
+                    server.broadcast(new ReadyMessage(readyPlayers, server.getConnections().size()));
+                } else if (server.getConnections().size() == readyPlayers)
+                {
+                    startGame();
+                }
+            }
+            else
             {
-                startGame();
+                //Remove player and such
             }
         }
     }
@@ -210,16 +221,9 @@ public class ServerMain extends SimpleApplication
 
 
     }
-    /*
-     * Receives messages from clients. 
-     */
 
     private class ServerListener implements MessageListener<HostedConnection>
     {
-        /*
-         * This method is automatically called whenever a message arrives 
-         * from a client.
-         */
 
         public void messageReceived(HostedConnection source, Message m)
         {
@@ -242,6 +246,11 @@ public class ServerMain extends SimpleApplication
                         server.broadcast(new ReadyMessage(readyPlayers, server.getConnections().size()));
                     }
                 }
+            }
+            if (m instanceof ShootMessage)
+            {
+                HitMessage message = (HitMessage) m;
+                server.broadcast(Filters.notEqualTo(source), message);
             }
         }
     }
@@ -283,42 +292,15 @@ public class ServerMain extends SimpleApplication
              * "Eat" the key pressed (otherwise it will end up in the printout).
              */
             e.consume();
-            /*
-             * NB! Must be "final"!
-             */
             final String m = "Manual (sent from jME thread) "
                     + (manualCounter++);
-            /*
-             * Print the string m.
-             */
             print(m);
-            /*
-             * Here several things happen. We see a call to the method enqueue 
-             * on the object ServerMain.this (that is, a SimpleApplication, 
-             * our jME thread). The argument is a new object of type Callable. 
-             * What you see is the creation of an anonymous class, or actually
-             * instance, that just contains a method call() with two Java 
-             * statements. It is this method that will be called by the 
-             * jME thread, the receiving thread. What is in this thread will be 
-             * carried out by the jME thread when the next call to simpleUpdate
-             * is made and before the method simpleUpdate is executed. 
-             */
             Future result = ServerMain.this.enqueue(new Callable()
             {
-                /*
-                 * Define what should be done by the receiving thread.
-                 */
                 public Object call() throws Exception
                 {
-                    /*
-                     * Send a message to all clients (do a "broadcast"). 
-                     */
+
                     server.broadcast(new NetworkMessage(m));
-                    /*
-                     * A Callable have to return something so I choose to 
-                     * return a boolean, but anything works. Here the result 
-                     * is not used. 
-                     */
                     return true;
                 }
             });
@@ -360,18 +342,8 @@ public class ServerMain extends SimpleApplication
 
         AutomaticServerNetWrite(final String name)
         {
-            /*
-             * Create a window and put "name" in the top bar.
-             */
             JFrame frame = new JFrame(name);
-            /*
-             * The thread with the JFrame should terminate if we click
-             * to kill the window.
-             */
             frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-            /*
-             * The area in which messages will be printed. 
-             */
             textArea = new JTextArea("");
             /*
              * Add a listener teh reacts to keys pressed and sends a messages 
@@ -397,17 +369,12 @@ public class ServerMain extends SimpleApplication
 
         public void run()
         {
-            /*
-             * Eternal loop...
-             */
+
             while (true)
             {
                 String m = "Automatic (sent from ServerNetWrite) "
                         + (autoCounter++);
                 print(m);
-                /*
-                 * Send to all clients. 
-                 */
                 //synchronized (PlayerNames)
                 {
                     for (HostedConnection client : server.getConnections())
@@ -424,10 +391,6 @@ public class ServerMain extends SimpleApplication
                 //  server.broadcast(new NetworkMessage(m));
                 try
                 {
-                    /*
-                     * Take a nap between SLEEP_MIN and SLEEP_MIN+SLEEP_EXTRA
-                     * seconds.
-                     */
                     Thread.sleep(SLEEP_MIN + sRand.nextInt(SLEEP_EXTRA));
                 } catch (InterruptedException ex)
                 {
@@ -443,5 +406,7 @@ public class ServerMain extends SimpleApplication
 
     public void startGame()
     {
+        STATE = Util.SERVER_PLAYING;
+        server.broadcast(new StartMessage());
     }
 }

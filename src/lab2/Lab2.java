@@ -33,8 +33,8 @@ public class Lab2 extends SimpleApplication
     
     public static final int PLAYINGFIELD_RESOLUTION = 100;
     public static final int CAN_RESOLUTION = 100;
-    public static final int CANNONBALL_NUM = 5;
-    public static final int CANNONBALL_RESOLUTION = 100;
+    public static final int cannonball_NUM = 5;
+    public static final int cannonball_RESOLUTION = 100;
     public static final int LARGECAN_NUM = 10;
     public static final int LARGECAN_VALUE = 10;
     public static final int MEDIUMCAN_NUM = 6;
@@ -55,7 +55,7 @@ public class Lab2 extends SimpleApplication
     public static final float MAXIMAL_CAN_RADIUS = LARGECAN_RADIUS;
     public static final float CANNON_SAFETYDISTANCE = 20f;
     public static final float SAFETY_MARGIN = 2f* MAXIMAL_CAN_RADIUS + CANNON_SAFETYDISTANCE;
-    public static final float CANNONBALL_RADIUS = 1.1f* MAXIMAL_CAN_RADIUS;
+    public static final float cannonball_RADIUS = 1.1f* MAXIMAL_CAN_RADIUS;
     
     
     public static final float ZERO = 0;
@@ -66,7 +66,7 @@ public class Lab2 extends SimpleApplication
     public static final float PLAYINGFIELD_RADIUS = 200f;
     public static final float PLAYINGFIELD_HEIGHT = 0.01f;
     public static final Vector3f PLAYINGFIELD_TRANSLATION = new Vector3f (ZERO, ZERO, -PLAYINGFIELD_RADIUS);
-    public static final float CANNON_BARREL_RADIUS = CANNONBALL_RADIUS;
+    public static final float CANNON_BARREL_RADIUS = cannonball_RADIUS;
     public static final float CANNON_BARREL_LENGTH = 30f;
     public static final Vector3f CANNON_BARREL_TRANSLATION = new Vector3f(ZERO, ZERO, -CANNON_BARREL_LENGTH / TWO);
     public static final float CANNON_BASE_RADIUS = CANNON_BARREL_RADIUS * THREE;
@@ -224,9 +224,9 @@ public class Lab2 extends SimpleApplication
                 }
                 else if (name == "fire")
                 {
-                    if (cannonballNode.getChildren().size() < CANNONBALL_NUM)
+                    if (cannonballNode.getChildren().size() < cannonball_NUM)
                     {
-                        cannonballNode.attachChild(createCannonball(cannonNode.getLocalRotation()));
+                        cannonballNode.attachChild(createcannonball(cannonNode.getLocalRotation()));
                     }
                 }
             }
@@ -339,9 +339,9 @@ public class Lab2 extends SimpleApplication
 
     }
     
-    public Geometry createCannonball(Quaternion rotation)
+    public Geometry createcannonball(Quaternion rotation)
     {
-        Sphere c = new Sphere(CANNONBALL_RESOLUTION,CANNONBALL_RESOLUTION,CANNONBALL_RADIUS);
+        Sphere c = new Sphere(cannonball_RESOLUTION,cannonball_RESOLUTION,cannonball_RADIUS);
         Geometry cBall = new Geometry("cannonball", c);
         Material matC = new Material (assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         matC.setColor("Color", ColorRGBA.Gray);

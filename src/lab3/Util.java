@@ -80,7 +80,7 @@ public class Util
     public static final float LASER_WIDTH = 0.1f;
     public static final Vector3f LASER_TRANSLATION = new Vector3f(ZERO, ZERO, -LASER_LENGTH);
     //SERVER
-    public String hostname = "127.0.0.1";
+    public static String hostName = "127.0.0.1";
     public static int portNumber = 7000;
     public static int SERVER_IDLE = 0;
     public static int SERVER_PLAYING = 1;
@@ -90,11 +90,17 @@ public class Util
     public static int CLIENT_WAITING = 2;
     public static int CLIENT_PLAYIING = 3;
     
-    public void initMessages()
+    public static void initMessages()
     {
+        //Network
         Serializer.registerClass(AliveMessage.class);
+        //Setup
         Serializer.registerClass(ReadyMessage.class);
-        //Serializer.registerClass(AliveMessage.class);
+        Serializer.registerClass(ConnectionMessage.class);
+        //Game
+        Serializer.registerClass(ShootMessage.class);
+        Serializer.registerClass(CansMessage.class);
+        Serializer.registerClass(HitMessage.class);
 
     }
 }
