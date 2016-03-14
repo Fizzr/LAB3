@@ -89,6 +89,7 @@ public class CreateGeos
         cannonballStartNode.setLocalTranslation(0, 0, -Util.CANNON_BARREL_LENGTH);
         
         Node cannonNode = new Node("Cannon");
+        cannonNode.setLocalTranslation(0, Util.CANNON_BARREL_RADIUS, 0);
         cannonNode.attachChild(cannonballStartNode);
         cannonNode.attachChild(cannon);
         cannonNode.attachChild(base);
@@ -128,21 +129,21 @@ public class CreateGeos
         matC.setColor("Color", colour);
         can.setMaterial(matC);
         can.setUserData("value", value);
+        can.setUserData("height", height);
         can.rotate(FastMath.HALF_PI, 0, 0);
-        can.rotate(0, 0, rand.nextFloat()*FastMath.TWO_PI);
-        can.move(can.getLocalRotation().getRotationColumn(2).mult(Util.PLAYINGFIELD_RADIUS-Util.SAFETY_MARGIN));
+        can.setLocalTranslation(0, height/2, 0);
         return can;
     }
     
-    public Geometry createcannonball(Node playerNode)
+    public Geometry createcannonball(Quaternion rotation, Vector3f translation)
     {
         Sphere c = new Sphere(Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RADIUS);
         Geometry cBall = new Geometry("cannonball", c);
         Material matC = new Material (assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         matC.setColor("Color", ColorRGBA.Gray);
         cBall.setMaterial(matC);
-        cBall.setLocalRotation(playerNode.getLocalRotation());
-        cBall.setLocalTranslation(playerNode.getChild("cannonballStartNode").getWorldTranslation());
+        cBall.setLocalRotation(rotation);
+        cBall.setLocalTranslation(translation);
         return cBall;
         
     }

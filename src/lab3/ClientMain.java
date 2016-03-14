@@ -12,7 +12,10 @@ import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.AnalogListener;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
 import com.jme3.network.Client;
+import com.jme3.network.ClientStateListener;
 import com.jme3.network.Message;
 import com.jme3.network.MessageListener;
 import com.jme3.network.Network;
@@ -52,16 +55,18 @@ public class ClientMain extends SimpleApplication
      * and thus we can keep a correct and consistent index over all clients.
      */
     private List<List<Spatial>> playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS);
+    private List<String> playerNames;
     private Client client;
-    private Node canNode;
+    private Node canNode = new Node("cans");
     private Node playingfieldNode = new Node("Playingfield");
+    private Node players = new Node("Enemies");
     private Node player;
-    private Node enemies = new Node("Enemies");
     private Node cannonballNode = new Node("Cannonballs");
     private BitmapText info;
     private float time = 30f;
     private CreateGeos geos;
     private boolean ready = false;
+    private boolean closing = false;
     private int STATE = Util.CLIENT_IDLE;
     private int shotIndex = 0;
     Material BGmat;
@@ -70,6 +75,7 @@ public class ClientMain extends SimpleApplication
     {
         Util.initMessages();
         ClientMain app = new ClientMain();
+        app.setPauseOnLostFocus(false);
         app.start();
     }
 
@@ -81,7 +87,6 @@ public class ClientMain extends SimpleApplication
     public void simpleInitApp()
     {
         geos = new CreateGeos(assetManager);
-        player = geos.createCannon();
         Quad UIQuad = new Quad(settings.getWidth(), settings.getHeight());
         Geometry BG = new Geometry("start", UIQuad);
         BGmat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
@@ -94,6 +99,7 @@ public class ClientMain extends SimpleApplication
         guiNode.attachChild(BG);
         guiNode.attachChild(info);
         rootNode.attachChild(guiNode);
+        newMatch();
         connectToServer();
         inputInit();
     }
@@ -111,12 +117,13 @@ public class ClientMain extends SimpleApplication
             /*
              * Add a listener that will handle incoming messages (network packets).
              */
+            client.addClientStateListener(new clientStateListener());
             client.addMessageListener(new ClientNetworkMessageListener());
 
         } catch (IOException ex)
         {
             setInfo("  Error connecting!\nPress Enter once to retry");
-            STATE = Util.CLIENT_DECLINED;
+            STATE = Util.CLIENT_DISCONNECTED;
         }
         /*
          * Remember to create all objects (just declaring a reference 
@@ -126,11 +133,72 @@ public class ClientMain extends SimpleApplication
         messageQueue = new ConcurrentLinkedQueue<String>();
     }
 
+    public void simpleUpdate(float tpf)
+    {
+        for (Spatial ball : cannonballNode.getChildren())
+        {
+            ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
+            if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
+            {
+                ball.removeFromParent();
+            }
+        }
+    }
+
+    private void newMatch()
+    {
+        //Set everything to default values. Somewhat redundant, but easy
+        rootNode.detachAllChildren();
+        rootNode.attachChild(guiNode);
+        playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS);
+        for (int i = 0; i < Util.MAX_PLAYERS; i++)
+        {
+            playerBallList.add(new ArrayList<Spatial>());
+        }
+        canNode = new Node("cans");
+        playingfieldNode = new Node("Playingfield");
+        playingfieldNode.attachChild(geos.createPlayingfield());
+        players = new Node("Enemies");
+        cannonballNode = new Node("Cannonballs");
+        time = 30f;
+        ready = false;
+        shotIndex = 0;
+        cam.setLocation(new Vector3f(0f, 20f, 0f));
+        flyCam.setMoveSpeed(80);
+        rootNode.attachChild(playingfieldNode);
+        rootNode.attachChild(canNode);
+        rootNode.attachChild(players);
+        rootNode.attachChild(cannonballNode);
+    }
+
+    private class clientStateListener implements ClientStateListener
+    {
+
+        public void clientConnected(Client c)
+        {
+        }
+
+        public void clientDisconnected(Client c, DisconnectInfo info)
+        {
+            if (!closing)
+            {
+                STATE = Util.CLIENT_DISCONNECTED;
+                setInfo(info.reason);
+                guiNode.setCullHint(Spatial.CullHint.Inherit);
+                client = null;
+            }
+        }
+    }
+
     private class ClientNetworkMessageListener implements MessageListener<Client>
     {
 
         public void messageReceived(Client source, Message m)
         {
+            if (m instanceof AliveMessage)
+            {
+                client.send(new AliveMessage());
+            }
             if (m instanceof ConnectionMessage)
             {
                 ConnectionMessage message = (ConnectionMessage) m;
@@ -139,11 +207,11 @@ public class ClientMain extends SimpleApplication
                     if (STATE != Util.CLIENT_WAITING) //If for some reason CansMessage arrived and terminated before ConnectionMessage
                     {
                         STATE = Util.CLIENT_LOADING;
+                        setInfo("Loading Level");
                     }
                 } else
                 {
-                    STATE = Util.CLIENT_DECLINED;
-                    setInfo(message.getMessage());
+                    STATE = Util.CLIENT_DISCONNECTED;
                 }
             }
             if (m instanceof CansMessage)
@@ -153,19 +221,53 @@ public class ClientMain extends SimpleApplication
                 {
                     public Object call() throws Exception
                     {
-                        canNode = message.getCans();
+                        for (int i = 0; i < message.getTranslations().size(); i++)
+                        {
+                            Spatial can = geos.createCan(message.getValue(i));
+                            can.setLocalTranslation(message.getTranslation(i));
+                            canNode.attachChild(can);
+                        }
                         STATE = Util.CLIENT_WAITING;
+                        setInfo("Press Enter when Ready");
                         return true;
                     }
                 });
             }
-
+            if (m instanceof ReadyMessage)
+            {
+                if (STATE == Util.CLIENT_WAITING && ready)
+                {
+                    final ReadyMessage message = (ReadyMessage) m;
+                    Future result = ClientMain.this.enqueue(new Callable()
+                    {
+                        public Object call() throws Exception
+                        {
+                            setInfo(message.getReadyPlayers() + " out of " + message.getTotalPlayers() + " ready!");
+                            return true;
+                        }
+                    });
+                }
+            }
             if (m instanceof StartMessage)
             {
+                final StartMessage message = (StartMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
                 {
                     public Object call() throws Exception
                     {
+                        playerNames = message.getPlayerNames();
+                        float fractal = FastMath.TWO_PI / playerNames.size();
+                        for (int i = 0; i < playerNames.size(); i++)
+                        {
+                            Node cannon = geos.createCannon();
+                            cannon.rotate(0, fractal * i, 0);
+                            cannon.move(cannon.getLocalRotation().getRotationColumn(2).mult(Util.PLAYINGFIELD_RADIUS));
+                            cannon.rotate(0, FastMath.PI, 0);
+                            if (i == client.getId())
+                            {
+                                player = cannon;
+                            }
+                        }
                         STATE = Util.CLIENT_PLAYIING;
                         guiNode.setCullHint(Spatial.CullHint.Always);
                         return true;
@@ -179,8 +281,9 @@ public class ClientMain extends SimpleApplication
                 {
                     public Object call() throws Exception
                     {
-                        cannonballNode.attachChild(message.getCannonball());
-                        playerBallList.get(message.getPlayer()).add(message.getBallID(), message.getCannonball());
+                        Geometry cBall = geos.createcannonball(message.getRotation(), message.getTranslation());
+                        cannonballNode.attachChild(cBall);
+                        playerBallList.get(message.getPlayer()).add(message.getBallID(), cBall);
                         return true;
                     }
                 });
@@ -222,16 +325,17 @@ public class ClientMain extends SimpleApplication
         {
             if (keyPressed && time > 0)
             {
-                if (name == "toggleLaser")
+                if (name == "toggleLaser" && STATE == Util.CLIENT_PLAYIING)
                 {
+                    player.getChild("laser").setCullHint((player.getChild("laser").getCullHint() == Spatial.CullHint.Dynamic) ? Spatial.CullHint.Always : Spatial.CullHint.Dynamic);
                 } else if (name == "fire")
                 {
                     if (STATE == Util.CLIENT_PLAYIING)
                     {
-                        Geometry cBall = geos.createcannonball(player);
+                        Geometry cBall = geos.createcannonball(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation());
                         cannonballNode.attachChild(cBall);
                         playerBallList.get(client.getId()).add(shotIndex, cBall);
-                        client.send(new ShootMessage(cBall, shotIndex, client.getId()));
+                        client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
                         shotIndex++;
                     }
                 } else if (name == "enter")
@@ -240,7 +344,7 @@ public class ClientMain extends SimpleApplication
                     {
                         ready = true;
                         client.send(new ReadyMessage());
-                    } else if (STATE == Util.CLIENT_DECLINED)
+                    } else if (STATE == Util.CLIENT_DISCONNECTED)
                     {
                         BGmat.setColor("Color", ColorRGBA.Orange);
                         setInfo("Retrying");
@@ -255,21 +359,33 @@ public class ClientMain extends SimpleApplication
         //"cuboidLeanBack", "cuboidLeanForward", "sphereShrinkRay", "sphereEnlargmentRay")
         public void onAnalog(String name, float value, float tpf)
         {
-            if (time > 0)
+            if (time > 0 && STATE == Util.CLIENT_PLAYIING)
             {
                 if (name == "turnLeft")
                 {
-                } 
-                else if (name == "turnRight")
+                    player.rotate(0, tpf, 0);
+                } else if (name == "turnRight")
                 {
+                    player.rotate(0, -tpf, 0);
                 }
             }
         }
     };
-    
+
     private void setInfo(String message)
     {
         info.setText(message);
-        info.setLocalTranslation(settings.getWidth() / 2 - info.getLineWidth()/2, settings.getHeight() / 2 - info.getLineHeight()/2, 0);
+        info.setLocalTranslation(settings.getWidth() / 2 - info.getLineWidth() / 2, settings.getHeight() / 2 - info.getLineHeight() / 2, 0);
+    }
+
+    @Override
+    public void destroy()
+    {
+        closing = true;
+        if (client != null)
+        {
+            client.close();
+        }
+        super.destroy();
     }
 }

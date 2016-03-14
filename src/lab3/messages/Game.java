@@ -4,11 +4,13 @@
  */
 package lab3.messages;
 
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.network.AbstractMessage;
 import com.jme3.network.serializing.Serializable;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
+import java.util.List;
 
 /**
  *
@@ -21,20 +23,33 @@ public class Game
     public static class CansMessage extends AbstractMessage
     {
 
-        Node cans;
-
+        private List<Integer> values;
+        private List<Vector3f> translations;
         public CansMessage()
         {
         }
 
-        public CansMessage(Node cans)
+        public CansMessage(List<Vector3f> translations, List<Integer> values)
         {
-            this.cans = cans;
+            this.translations = translations;
+            this.values = values;
         }
 
-        public Node getCans()
+        public List<Vector3f> getTranslations()
         {
-            return this.cans;
+            return this.translations;
+        }
+        public Vector3f getTranslation(int i)
+        {
+            return this.translations.get(i);
+        }
+        public List<Integer> getValues()
+        {
+            return this.values;
+        }
+        public int getValue(int i)
+        {
+            return this.values.get(i);
         }
     }
 
@@ -84,7 +99,8 @@ public class Game
     public static class ShootMessage extends AbstractMessage
     {
 
-        private Spatial cannonball;
+        Quaternion rotation;
+        Vector3f translation;
         private int ballID;
         private int playerID;
 
@@ -92,18 +108,22 @@ public class Game
         {
         }
 
-        public ShootMessage(Spatial cannonball, int ballID, int playerID)
+        public ShootMessage(Quaternion rotation, Vector3f translation, int ballID, int playerID)
         {
-            this.cannonball = cannonball;
+            this.rotation = rotation;
+            this.translation = translation;
             this.ballID = ballID;
             this.playerID = playerID;
         }
 
-        public Spatial getCannonball()
+        public Quaternion getRotation()
         {
-            return this.cannonball;
+            return this.rotation;
         }
-
+        public Vector3f getTranslation()
+        {
+            return this.translation;
+        }
         public int getPlayer()
         {
             return this.playerID;

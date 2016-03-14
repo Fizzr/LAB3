@@ -59,6 +59,7 @@ public class Util
     public static final int CANNONBALL_NUM = 5;
     public static final int CANNONBALL_RESOLUTION = 100;
     public static final float CANNONBALL_RADIUS = 1.1f* MAXIMAL_CAN_RADIUS;
+    public static final float CANNONBALL_SPEED = -20f;
     //CANNON
     public static final float CANNON_BARREL_RADIUS = CANNONBALL_RADIUS;
     public static final float CANNON_BARREL_LENGTH = 30f;
@@ -84,22 +85,25 @@ public class Util
     public static int portNumber = 7000;
     public static int SERVER_IDLE = 0;
     public static int SERVER_PLAYING = 1;
+    public static int MAX_ALIVE_FAILURES = 10;
     //CLIENT
     public static int CLIENT_IDLE = 0;
     public static int CLIENT_LOADING = 1;
     public static int CLIENT_WAITING = 2;
     public static int CLIENT_PLAYIING = 3;
-    public static int CLIENT_DECLINED = 4;
+    public static int CLIENT_DISCONNECTED = 4;
     //GAME
     public static int MAX_PLAYERS = 8;
     
     public static void initMessages()
     {
         //Network
+        Serializer.registerClass(NetworkMessage.class);
         Serializer.registerClass(AliveMessage.class);
         //Setup
         Serializer.registerClass(ReadyMessage.class);
         Serializer.registerClass(ConnectionMessage.class);
+        Serializer.registerClass(StartMessage.class);
         //Game
         Serializer.registerClass(ShootMessage.class);
         Serializer.registerClass(CansMessage.class);
@@ -107,3 +111,14 @@ public class Util
 
     }
 }
+
+
+/* 
+ * TODO:
+ * Add players to scene
+ * Remove players and balls from scene when disconnecting
+ * Scoring players
+ * Basic rotation and subsequent messages
+ * Check Håkans requirements heh...heh...
+ * Move scene so it centers origon!
+ */

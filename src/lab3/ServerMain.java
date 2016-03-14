@@ -6,6 +6,8 @@ package lab3;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.collision.CollisionResults;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
 import com.jme3.network.ConnectionListener;
 import com.jme3.network.Filters;
 import com.jme3.network.HostedConnection;
@@ -21,8 +23,11 @@ import com.jme3.system.JmeContext;
 import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
@@ -44,83 +49,72 @@ import lab3.messages.Setup.*;
 public class ServerMain extends SimpleApplication
 {
 
+    private CreateGeos geos;
     private int readyPlayers = 0;
     private Server server;
     private JTextArea textArea;
-    private Node playingfieldNode;
-    private Node playersNode;
-    private Node cannonballNode;
-    private Node canNode;
+    private Node playingfieldNode = new Node("playingfieldNode");
+    private Node playersNode = new Node("players");
+    private Node cannonballNode = new Node("cannonballs");
+    private Node canNode = new Node("canNode");
     private int STATE = Util.SERVER_IDLE;
-    private Random sRand = new Random();
-    private long seed = sRand.nextLong();
-    private Random gRand = new Random(seed);
+    private Random rand = new Random();
+    private boolean set = false;
 
     public static void main(String[] args)
     {
+        Util.initMessages();
         ServerMain app = new ServerMain();
         app.start(JmeContext.Type.Headless);
-        /*
-         * Below is a small text-based user interface.
-         */
-        System.out.println("Server console - echos text until 'q' is entered\n");
-        // read lines and print them until "q" is encountered
-        Scanner s = new Scanner(System.in);
-        s.useDelimiter("\\n");
-        skip:
-        while (s.hasNext())
-        {
-            String input = s.next();
-            if (input.equals("q"))
-            {
-                break skip; // jump out of the loop marked "skip"
-            } else if (input.equals("s"))
-            {
-                app.prepare();
-            };
-            System.out.println(input);
-        }
-        s.close();
-        System.out.println("Bye\n");
-        System.exit(0); // end all server threads by brute force
     }
 
     ServerMain()
     {
     }
 
-    public class connLis implements ConnectionListener
+    public class connectionListener implements ConnectionListener
     {
 
         public void connectionAdded(Server server, HostedConnection conn)
         {
             if (STATE == Util.SERVER_IDLE)
             {
+                print("Connection " + conn.getId() + " added");
                 conn.setAttribute("aliveMessages", 0);
                 conn.setAttribute("ready", false);
                 conn.send(new ConnectionMessage(true));
-                conn.send(new CansMessage(canNode));
+                List<Integer> values = new ArrayList<Integer>();
+                List<Vector3f> translations = new ArrayList<Vector3f>();
+                for (Spatial can : canNode.getChildren())
+                {
+                    values.add((Integer) can.getUserData("value"));
+                    translations.add(can.getLocalTranslation());
+                }
+                conn.send(new CansMessage(translations, values));
+                set = true;
             } else
             {
-                conn.send(new ConnectionMessage(false, "Already playing"));
+                print("Connection refused");
+                conn.send(new ConnectionMessage(false));
                 conn.close("Already playing");
             }
         }
 
         public void connectionRemoved(Server server, HostedConnection conn)
         {
+            print("Connection " + conn.getId() + " removed");
             if (STATE == Util.SERVER_IDLE)
             {
+                server.broadcast(new DisconnectMessagae(conn.getId()));
                 if ((Boolean) conn.getAttribute("ready") == true)
                 {
                     readyPlayers--;
                     server.broadcast(new ReadyMessage(readyPlayers, server.getConnections().size()));
-                } else if (server.getConnections().size() == readyPlayers)
+                } else if (server.getConnections().size() == readyPlayers && server.hasConnections())
                 {
                     startGame();
                 }
-            }
-            else
+            } else
             {
                 //Remove player and such
             }
@@ -130,6 +124,8 @@ public class ServerMain extends SimpleApplication
     @Override
     public void simpleInitApp()
     {
+        geos = new CreateGeos(assetManager);
+        flyCam.setMoveSpeed(100);
         try
         {
             /*
@@ -137,6 +133,10 @@ public class ServerMain extends SimpleApplication
              */
             server = Network.createServer(Util.portNumber);
             server.start();
+            server.addConnectionListener(new connectionListener());
+            server.addMessageListener(new ServerListener());
+            prepareMatch();
+
         } catch (IOException ex)
         {
             ex.printStackTrace();
@@ -151,8 +151,6 @@ public class ServerMain extends SimpleApplication
          * Here we add, to the server, a listener that automatically handles 
          * all incoming messages. 
          */
-        server.addMessageListener(new ServerListener());
-        prepareMatch();
     }
 
     @Override
@@ -162,6 +160,7 @@ public class ServerMain extends SimpleApplication
         {
             for (Spatial ball : cannonballNode.getChildren())
             {
+                ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
                 if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
                 {
                     ball.removeFromParent();
@@ -173,26 +172,13 @@ public class ServerMain extends SimpleApplication
                 if (results.size() > 0)
                 {
                     Geometry hit = results.getClosestCollision().getGeometry();
-                    hit.removeFromParent();
-                    ball.removeFromParent();
                     int value = hit.getUserData("value");
-                    //SCORE!!!!
-                    if (value == Util.LARGECAN_VALUE)
-                    {
-                        //activeLargeCan--;
-                    } else if (value == Util.MEDIUMCAN_VALUE)
-                    {
-                        //activeMediumCan--;
-                    } else if (value == Util.SMALLCAN_VALUE)
-                    {
-                        //activeSmallCan--;
-                    }
+                    hit.setLocalTranslation(0, (Float) hit.getUserData("height") / 2, 0);
+                    hit.rotate(0, 0, rand.nextFloat() * FastMath.TWO_PI);
+                    hit.move(hit.getLocalRotation().getRotationColumn(0).mult(rand.nextFloat() * (Util.PLAYINGFIELD_RADIUS - Util.SAFETY_MARGIN)));
+                    server.broadcast(new HitMessage((Integer) ball.getUserData("player"), canNode.getChildIndex(hit), hit.getLocalTranslation(), (Integer) ball.getUserData("ID")));
+                    ball.removeFromParent();
                 }
-
-                float x = ball.getUserData("x");
-                float z = ball.getUserData("z");
-                ball.move(-20 * tpf * x, 0, -20 * tpf * z);
-
             }
         }
     }
@@ -205,6 +191,11 @@ public class ServerMain extends SimpleApplication
     @Override
     public void destroy()
     {
+        System.out.println("Shutting down");
+        for (HostedConnection client : server.getConnections())
+        {
+            client.close("Server shutdown");
+        }
         server.close();
         super.destroy();
     }
@@ -230,6 +221,7 @@ public class ServerMain extends SimpleApplication
             if (m instanceof AliveMessage)
             {
                 source.setAttribute("aliveMessages", 0);
+                print("Alive ACK from " + source.getId());
             }
             if (m instanceof ReadyMessage)
             {
@@ -249,8 +241,20 @@ public class ServerMain extends SimpleApplication
             }
             if (m instanceof ShootMessage)
             {
-                ShootMessage message = (ShootMessage) m;
+                print(source.getId() + " Shooting");
+                final ShootMessage message = (ShootMessage) m;
                 server.broadcast(Filters.notEqualTo(source), message);
+                Future result = ServerMain.this.enqueue(new Callable()
+                {
+                    public Object call() throws Exception
+                    {
+                        Spatial ball = geos.createcannonball(message.getRotation(), message.getTranslation());
+                        ball.setUserData("player", message.getPlayer());
+                        ball.setUserData("ID", message.getBallID());
+                        cannonballNode.attachChild(ball);
+                        return true;
+                    }
+                });
             }
         }
     }
@@ -333,7 +337,7 @@ public class ServerMain extends SimpleApplication
 
         private int XPOS = 600, YPOS = 700, WINDOW_SIZE = 700,
                 SLEEP_MIN = 1000, SLEEP_EXTRA = 2000,
-                autoCounter = 1, MAX_ALIVE_FAILURES = 10;
+                autoCounter = 1;
         /*
          * Creates a window with a TextArea separate from the jME thread. 
          * 
@@ -343,6 +347,14 @@ public class ServerMain extends SimpleApplication
         AutomaticServerNetWrite(final String name)
         {
             JFrame frame = new JFrame(name);
+            frame.addWindowListener(new WindowAdapter()
+            {
+                @Override
+                public void windowClosing(WindowEvent e)
+                {
+                    destroy();
+                }
+            });
             frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
             textArea = new JTextArea("");
             /*
@@ -379,19 +391,21 @@ public class ServerMain extends SimpleApplication
                 {
                     for (HostedConnection client : server.getConnections())
                     {
+
                         client.send(new AliveMessage());
+                        print("AliveMessage to Client " + client.getId() + " with " + (Integer) client.getAttribute("aliveMessages") + "failiours");
                         client.setAttribute("aliveMessages", ((Integer) client.getAttribute("aliveMessages")) + 1);
-                        if ((Integer) client.getAttribute("aliveMessages") > MAX_ALIVE_FAILURES)
+                        if ((Integer) client.getAttribute("aliveMessages") > Util.MAX_ALIVE_FAILURES)
                         {
                             print("Kicking unresponsive user.");
                             client.close("Timeout");
                         }
+
                     }
                 }
-                //  server.broadcast(new NetworkMessage(m));
                 try
                 {
-                    Thread.sleep(SLEEP_MIN + sRand.nextInt(SLEEP_EXTRA));
+                    Thread.sleep(SLEEP_MIN + rand.nextInt(SLEEP_EXTRA));
                 } catch (InterruptedException ex)
                 {
                     ex.printStackTrace();
@@ -402,11 +416,43 @@ public class ServerMain extends SimpleApplication
 
     public void prepareMatch()
     {
+        rootNode.detachAllChildren();
+        playingfieldNode.attachChild(geos.createPlayingfield());
+        for (int i = 0; i < Util.LARGECAN_NUM; i++)
+        {
+            Spatial can = geos.createCan(Util.LARGECAN_VALUE);
+            can.rotate(0, 0, rand.nextFloat() * FastMath.TWO_PI);
+            can.move(can.getLocalRotation().getRotationColumn(0).mult(rand.nextFloat() * (Util.PLAYINGFIELD_RADIUS - Util.SAFETY_MARGIN)));
+            canNode.attachChild(can);
+        }
+        for (int i = 0; i < Util.MEDIUMCAN_NUM; i++)
+        {
+            Spatial can = geos.createCan(Util.MEDIUMCAN_VALUE);
+            can.rotate(0, 0, rand.nextFloat() * FastMath.TWO_PI);
+            can.move(can.getLocalRotation().getRotationColumn(0).mult(rand.nextFloat() * (Util.PLAYINGFIELD_RADIUS - Util.SAFETY_MARGIN)));
+            canNode.attachChild(can);
+        }
+        for (int i = 0; i < Util.SMALLCAN_NUM; i++)
+        {
+            Spatial can = geos.createCan(Util.SMALLCAN_VALUE);
+            can.rotate(0, 0, rand.nextFloat() * FastMath.TWO_PI);
+            can.move(can.getLocalRotation().getRotationColumn(0).mult(rand.nextFloat() * (Util.PLAYINGFIELD_RADIUS - Util.SAFETY_MARGIN)));
+            canNode.attachChild(can);
+        }
+        rootNode.attachChild(playingfieldNode);
+        rootNode.attachChild(canNode);
+        rootNode.attachChild(cannonballNode);
+        rootNode.attachChild(playersNode);
     }
 
     public void startGame()
     {
         STATE = Util.SERVER_PLAYING;
-        server.broadcast(new StartMessage());
+        List<String> playerNames = new ArrayList<String>();
+        for (HostedConnection client : server.getConnections())
+        {
+            playerNames.add("Player "+(client.getId()+1));
+        }
+        server.broadcast(new StartMessage(playerNames));
     }
 }
