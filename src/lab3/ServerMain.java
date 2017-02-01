@@ -83,14 +83,14 @@ public class ServerMain extends SimpleApplication
                 conn.setAttribute("aliveMessages", 0);
                 conn.setAttribute("ready", false);
                 conn.send(new ConnectionMessage(true));
-                List<Integer> values = new ArrayList<Integer>();
+                List<Integer> canValues = new ArrayList<Integer>();
                 List<Vector3f> translations = new ArrayList<Vector3f>();
                 for (Spatial can : canNode.getChildren())
                 {
-                    values.add((Integer) can.getUserData("value"));
+                    canValues.add((Integer) can.getUserData("value"));
                     translations.add(can.getLocalTranslation());
                 }
-                conn.send(new CansMessage(translations, values));
+                conn.send(new CansMessage(translations, canValues));
                 set = true;
             } else
             {
@@ -116,7 +116,19 @@ public class ServerMain extends SimpleApplication
                 }
             } else
             {
-                //Remove player and such
+                if(server.getConnections().isEmpty()) //reset for a new match (need fix)
+                {
+                    System.exit(0);
+                    /*
+                    STATE = Util.SERVER_IDLE;
+                    readyPlayers = 0;
+                    prepareMatch();
+                    */
+                }
+                else
+                {
+                    //Remove player and such
+                }
             }
         }
     }
@@ -227,6 +239,7 @@ public class ServerMain extends SimpleApplication
             {
                 if ((Boolean) source.getAttribute("ready") == false)
                 {
+                    print(source.getId() + " is ready!");
                     readyPlayers++;
                     source.setAttribute("ready", true);
 
@@ -235,6 +248,7 @@ public class ServerMain extends SimpleApplication
                         startGame();
                     } else
                     {
+                        print("Not all ready");
                         server.broadcast(new ReadyMessage(readyPlayers, server.getConnections().size()));
                     }
                 }
@@ -417,6 +431,10 @@ public class ServerMain extends SimpleApplication
     public void prepareMatch()
     {
         rootNode.detachAllChildren();
+        playingfieldNode.detachAllChildren();
+        playersNode.detachAllChildren();
+        canNode.detachAllChildren();
+        cannonballNode.detachAllChildren();
         playingfieldNode.attachChild(geos.createPlayingfield());
         for (int i = 0; i < Util.LARGECAN_NUM; i++)
         {
@@ -448,11 +466,25 @@ public class ServerMain extends SimpleApplication
     public void startGame()
     {
         STATE = Util.SERVER_PLAYING;
+        
         List<String> playerNames = new ArrayList<String>();
+        
+        float fractal = FastMath.TWO_PI / server.getConnections().size();
+        for (int i = 0; i < server.getConnections().size(); i++)
+        {
+            playerNames.add(String.valueOf(server.getConnection(i).getId()));
+            Node cannon = geos.createCannon();
+            cannon.rotate(0, fractal * i, 0);
+            cannon.move(cannon.getLocalRotation().getRotationColumn(2).mult(Util.PLAYINGFIELD_RADIUS));
+            cannon.rotate(0, FastMath.PI, 0);
+            playersNode.attachChild(cannon);
+        }
+        
+        int i = 0;
         for (HostedConnection client : server.getConnections())
         {
-            playerNames.add("Player "+(client.getId()+1));
+            client.send(new StartMessage(playerNames, i));
+            i++;
         }
-        server.broadcast(new StartMessage(playerNames));
     }
 }

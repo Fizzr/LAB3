@@ -17,10 +17,6 @@ import lab3.messages.Network.*;
 import lab3.messages.Game.*;
 import lab3.messages.Setup.*;
 
-/**
- *
- * @author 4shitnigglesxxdeathx
- */
 public class Util
 {
     //MISC
@@ -56,7 +52,6 @@ public class Util
     public static final float MAXIMAL_CAN_RADIUS = LARGECAN_RADIUS;
     public static final int CYLINDER_RESOLUTION = 100;
     //CANNONBAL
-    public static final int CANNONBALL_NUM = 5;
     public static final int CANNONBALL_RESOLUTION = 100;
     public static final float CANNONBALL_RADIUS = 1.1f* MAXIMAL_CAN_RADIUS;
     public static final float CANNONBALL_SPEED = -20f;
@@ -94,6 +89,8 @@ public class Util
     public static int CLIENT_DISCONNECTED = 4;
     //GAME
     public static int MAX_PLAYERS = 8;
+    public static final int MAX_CANNONBALL = 5;
+
     
     public static void initMessages()
     {
@@ -115,10 +112,9 @@ public class Util
 
 /* 
  * TODO:
- * Add players to scene
  * Remove players and balls from scene when disconnecting
  * Scoring players
  * Basic rotation and subsequent messages
  * Check Håkans requirements heh...heh...
- * Move scene so it centers origon!
+ * Move scene so it centers origo!
  */

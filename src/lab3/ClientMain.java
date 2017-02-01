@@ -13,6 +13,7 @@ import com.jme3.input.controls.AnalogListener;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.network.Client;
 import com.jme3.network.ClientStateListener;
@@ -23,6 +24,7 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Quad;
+import com.jme3.scene.shape.Sphere;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -69,6 +71,7 @@ public class ClientMain extends SimpleApplication
     private boolean closing = false;
     private int STATE = Util.CLIENT_IDLE;
     private int shotIndex = 0;
+    private int playerIndex;
     Material BGmat;
 
     public static void main(String[] args)
@@ -138,6 +141,7 @@ public class ClientMain extends SimpleApplication
         for (Spatial ball : cannonballNode.getChildren())
         {
             ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
+            System.out.println(ball.getWorldTranslation().toString());
             if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
             {
                 ball.removeFromParent();
@@ -256,21 +260,25 @@ public class ClientMain extends SimpleApplication
                     public Object call() throws Exception
                     {
                         playerNames = message.getPlayerNames();
+                        playerIndex = message.getIndex();
                         float fractal = FastMath.TWO_PI / playerNames.size();
                         for (int i = 0; i < playerNames.size(); i++)
                         {
                             Node cannon = geos.createCannon();
                             cannon.rotate(0, fractal * i, 0);
                             cannon.move(cannon.getLocalRotation().getRotationColumn(2).mult(Util.PLAYINGFIELD_RADIUS));
-                            cannon.rotate(0, FastMath.PI, 0);
-                            if (i == client.getId())
+                            cannon.move(0, 0.1f, 0);
+                            if (i == playerIndex)
                             {
                                 player = cannon;
+                                cam.setLocation(cannon.localToWorld(new Vector3f(0, 50, 80), Vector3f.ZERO));
+                                cam.lookAt(playingfieldNode.getWorldTranslation(), new Vector3f(0,1,0));
                             }
+                            players.attachChild(cannon);
                         }
                         STATE = Util.CLIENT_PLAYIING;
-                        guiNode.setCullHint(Spatial.CullHint.Always);
-                        return true;
+                        guiNode.setCullHint(Spatial.CullHint.Always); 
+                       return true;
                     }
                 });
             }
@@ -330,20 +338,35 @@ public class ClientMain extends SimpleApplication
                     player.getChild("laser").setCullHint((player.getChild("laser").getCullHint() == Spatial.CullHint.Dynamic) ? Spatial.CullHint.Always : Spatial.CullHint.Dynamic);
                 } else if (name == "fire")
                 {
-                    if (STATE == Util.CLIENT_PLAYIING)
+                    if (STATE == Util.CLIENT_PLAYIING && playerBallList.get(playerIndex).size() <= Util.MAX_CANNONBALL)
                     {
-                        Geometry cBall = geos.createcannonball(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation());
+                        Geometry cBall = geos.createcannonball(player.getLocalRotation(), player./*getChild("cannonballStartNode").*/getWorldTranslation());
                         cannonballNode.attachChild(cBall);
-                        playerBallList.get(client.getId()).add(shotIndex, cBall);
-                        client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
+                        playerBallList.get(playerIndex).add(shotIndex, cBall); 
+                        client.send(new ShootMessage(player.getLocalRotation(), player./*getChild("cannonballStartNode").*/getWorldTranslation(), shotIndex, client.getId()));
                         shotIndex++;
+                        Sphere c = new Sphere(10, 10, 10);//Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RADIUS);
+                        Geometry bBall = new Geometry("cannonball", c);
+                        Material matC = new Material (assetManager, "Common/MatDefs/Misc/ShowNormals.j3md");
+                        //matC.setColor("Color", ColorRGBA.Yellow);
+                        bBall.setMaterial(matC);
+                        //bBall.setLocalRotation(player.getLocalRotation());
+                        bBall.setLocalTranslation(new Vector3f(0,0,0));//player.getChild("cannonballStartNode").getWorldTranslation());
+                        rootNode.attachChild(bBall);
+                        System.out.println(player.getWorldTranslation().toString());
+                        System.out.println(player.getChild("cannonballStartNode").getWorldTranslation().toString());
+                        System.out.println(cBall.getWorldTranslation().toString());
+                        System.out.println(cannonballNode.getWorldTranslation().toString());
+                        System.out.println("---------------");
                     }
                 } else if (name == "enter")
                 {
                     if (STATE == Util.CLIENT_WAITING && !ready)
                     {
                         ready = true;
+                        System.out.println("entered");
                         client.send(new ReadyMessage());
+                        System.out.println("entered2");
                     } else if (STATE == Util.CLIENT_DISCONNECTED)
                     {
                         BGmat.setColor("Color", ColorRGBA.Orange);

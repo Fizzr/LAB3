@@ -1,7 +1,4 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
+
 package lab3;
 
 import com.jme3.asset.AssetManager;
@@ -19,17 +16,20 @@ import com.jme3.scene.shape.Sphere;
 import com.jme3.texture.Texture;
 import java.util.Random;
 
-/**
- *
- * @author Claes
- */
+/*
+ * Class simply made to keep code regarding Geometries and their creation seperate form game logic.
+*/
 public class CreateGeos
 {
     private AssetManager assetManager;
     private Random rand = new Random();
+    private Material cannonballMat;
     public CreateGeos(AssetManager assetManager)
     {
         this.assetManager = assetManager;
+        Material matC = new Material (assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        matC.setColor("Color", ColorRGBA.Gray);
+        cannonballMat = matC;
     }
     
     public Spatial createPlayingfield()
@@ -139,12 +139,10 @@ public class CreateGeos
     {
         Sphere c = new Sphere(Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RADIUS);
         Geometry cBall = new Geometry("cannonball", c);
-        Material matC = new Material (assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        matC.setColor("Color", ColorRGBA.Gray);
-        cBall.setMaterial(matC);
+        cBall.setMaterial(cannonballMat);
         cBall.setLocalRotation(rotation);
         cBall.setLocalTranslation(translation);
         return cBall;
         
-    }
+    } 
 }
