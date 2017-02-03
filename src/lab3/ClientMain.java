@@ -23,6 +23,7 @@ import com.jme3.network.Network;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
+import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Quad;
 import com.jme3.scene.shape.Sphere;
 import java.io.IOException;
@@ -151,13 +152,14 @@ public class ClientMain extends SimpleApplication
 
     private void newMatch()
     {
-        //Set everything to default values. Somewhat redundant, but easy
+        //Set everything to default values. Somewhat redundant, but easy (I dont remember why I do this, but too lazy to find out)
         rootNode.detachAllChildren();
         rootNode.attachChild(guiNode);
+        rootNode.attachChild(geos.createcannonball(Quaternion.ZERO, Vector3f.ZERO));
         playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS);
         for (int i = 0; i < Util.MAX_PLAYERS; i++)
         {
-            playerBallList.add(new ArrayList<Spatial>());
+            playerBallList.add(new ArrayList<Spatial>(Util.MAX_CANNONBALL));
         }
         canNode = new Node("cans");
         playingfieldNode = new Node("Playingfield");
@@ -271,7 +273,7 @@ public class ClientMain extends SimpleApplication
                             if (i == playerIndex)
                             {
                                 player = cannon;
-                                cam.setLocation(cannon.localToWorld(new Vector3f(0, 50, 80), Vector3f.ZERO));
+                                cam.setLocation(cannon.localToWorld(new Vector3f(0, 50, 80), new Vector3f(0,0,0)));
                                 cam.lookAt(playingfieldNode.getWorldTranslation(), new Vector3f(0,1,0));
                             }
                             players.attachChild(cannon);
@@ -306,8 +308,16 @@ public class ClientMain extends SimpleApplication
                         //Move can
                         canNode.getChild(message.getHitCan()).setLocalTranslation(message.getNewTranslation());
                         //Remove ball from cannonballNode
-                        playerBallList.get(message.getPlayer()).get(message.getBallID()).removeFromParent();
-
+                        //A for loop checking ID because shootMessages might come out of order!
+                        List<Spatial> playerBalls = playerBallList.get(message.getPlayer());
+                        for (int i = 0; i < playerBalls.size(); i++)
+                        {
+                            if((Integer) playerBalls.get(i).getUserData("ID") == message.getBallID())
+                            {
+                                playerBalls.get(i).removeFromParent();
+                                playerBalls.remove(i);
+                            }
+                        }
                         //SCORE PLAYER??
                         return true;
                     }
@@ -340,24 +350,11 @@ public class ClientMain extends SimpleApplication
                 {
                     if (STATE == Util.CLIENT_PLAYIING && playerBallList.get(playerIndex).size() <= Util.MAX_CANNONBALL)
                     {
-                        Geometry cBall = geos.createcannonball(player.getLocalRotation(), player./*getChild("cannonballStartNode").*/getWorldTranslation());
+                        Geometry cBall = geos.createcannonball(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation());
                         cannonballNode.attachChild(cBall);
                         playerBallList.get(playerIndex).add(shotIndex, cBall); 
-                        client.send(new ShootMessage(player.getLocalRotation(), player./*getChild("cannonballStartNode").*/getWorldTranslation(), shotIndex, client.getId()));
+                        client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
                         shotIndex++;
-                        Sphere c = new Sphere(10, 10, 10);//Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RESOLUTION,Util.CANNONBALL_RADIUS);
-                        Geometry bBall = new Geometry("cannonball", c);
-                        Material matC = new Material (assetManager, "Common/MatDefs/Misc/ShowNormals.j3md");
-                        //matC.setColor("Color", ColorRGBA.Yellow);
-                        bBall.setMaterial(matC);
-                        //bBall.setLocalRotation(player.getLocalRotation());
-                        bBall.setLocalTranslation(new Vector3f(0,0,0));//player.getChild("cannonballStartNode").getWorldTranslation());
-                        rootNode.attachChild(bBall);
-                        System.out.println(player.getWorldTranslation().toString());
-                        System.out.println(player.getChild("cannonballStartNode").getWorldTranslation().toString());
-                        System.out.println(cBall.getWorldTranslation().toString());
-                        System.out.println(cannonballNode.getWorldTranslation().toString());
-                        System.out.println("---------------");
                     }
                 } else if (name == "enter")
                 {
