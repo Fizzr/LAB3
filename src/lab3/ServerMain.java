@@ -7,6 +7,7 @@ package lab3;
 import com.jme3.app.SimpleApplication;
 import com.jme3.collision.CollisionResults;
 import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.network.ConnectionListener;
 import com.jme3.network.Filters;
@@ -60,6 +61,8 @@ public class ServerMain extends SimpleApplication
     private int STATE = Util.SERVER_IDLE;
     private Random rand = new Random();
     private boolean set = false;
+    
+    private int temp = 0;
 
     public static void main(String[] args)
     {
@@ -170,6 +173,10 @@ public class ServerMain extends SimpleApplication
     {
         if (STATE == Util.SERVER_PLAYING)
         {
+            List<List<Integer>> collisionControl = new ArrayList<List<Integer>>(readyPlayers);
+            for(int i = 0; i < collisionControl.size(); i++)
+                collisionControl.add(new ArrayList<Integer>(Util.MAX_CANNONBALL));
+            
             for (Spatial ball : cannonballNode.getChildren())
             {
                 ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
@@ -178,7 +185,42 @@ public class ServerMain extends SimpleApplication
                     ball.removeFromParent();
                     continue;
                 }
-                CollisionResults results = new CollisionResults();
+                
+                /* Check whether the given ball has already collided with something this update */
+                boolean run = true;
+                List<Integer> IDList = collisionControl.get((Integer)ball.getUserData("player"));
+                if(IDList.size() > 0)
+                {
+                    for(int ID : IDList)
+                    {
+                        if(ID == (Integer) ball.getUserData("ID"))
+                            run = false;
+                    }
+                }
+                CollisionResults results;
+                if(run)
+                {
+                    results = new CollisionResults();
+                    int ballIndex = cannonballNode.getChildIndex(ball);
+                    cannonballNode.detachChild(ball);
+                    cannonballNode.collideWith(ball.getWorldBound(), results);
+                    cannonballNode.attachChildAt(ball, ballIndex);
+                    if(results.size() > 0)
+                    {
+                        Geometry hit = results.getClosestCollision().getGeometry();
+                        Vector3f contact = hit.getWorldTranslation();
+                        Vector3f normal = ball.getWorldTranslation().subtract(contact).normalize();
+                        Quaternion dir = new Quaternion();
+                        dir.lookAt(normal, Vector3f.UNIT_Y);
+                        ball.rotate(dir);
+                        hit.rotate(dir.inverse());
+                        server.broadcast(new CollisionMessage((Integer)ball.getUserData("player"), (Integer)ball.getUserData("ID"), (Integer)hit.getUserData("player"), (Integer)hit.getUserData("ID"), dir, dir.inverse()));
+                        print("ball collide!");
+                        print("Normal: " + normal.toString());
+                        collisionControl.get((Integer)hit.getUserData("player")).add((Integer)hit.getUserData("ID"));
+                    }
+                }
+                results = new CollisionResults();
                 canNode.collideWith(ball.getWorldBound(), results);
 
                 if (results.size() > 0)
@@ -233,7 +275,7 @@ public class ServerMain extends SimpleApplication
             if (m instanceof AliveMessage)
             {
                 source.setAttribute("aliveMessages", 0);
-                print("Alive ACK from " + source.getId());
+                //print("Alive ACK from " + source.getId());
             }
             if (m instanceof ReadyMessage)
             {
@@ -400,14 +442,14 @@ public class ServerMain extends SimpleApplication
             {
                 String m = "Automatic (sent from ServerNetWrite) "
                         + (autoCounter++);
-                print(m);
+                //print(m);
                 //synchronized (PlayerNames)
                 {
                     for (HostedConnection client : server.getConnections())
                     {
 
                         client.send(new AliveMessage());
-                        print("AliveMessage to Client " + client.getId() + " with " + (Integer) client.getAttribute("aliveMessages") + "failiours");
+                        //print("AliveMessage to Client " + client.getId() + " with " + (Integer) client.getAttribute("aliveMessages") + "failiours");
                         client.setAttribute("aliveMessages", ((Integer) client.getAttribute("aliveMessages")) + 1);
                         if ((Integer) client.getAttribute("aliveMessages") > Util.MAX_ALIVE_FAILURES)
                         {

@@ -10,6 +10,7 @@ import com.jme3.network.AbstractMessage;
 import com.jme3.network.serializing.Serializable;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -131,6 +132,38 @@ public class Game
         public int getBallID()
         {
             return this.ballID;
+        }
+    }
+    @Serializable
+    public static class CollisionMessage extends AbstractMessage
+    {
+        private int player1;
+        private int player2;
+        private int ball1;
+        private int ball2;
+        private Quaternion dir1;
+        private Quaternion dir2;
+        public CollisionMessage(){}
+        public CollisionMessage(int player1, int ball1, int player2, int ball2, Quaternion dir1, Quaternion dir2)
+        {
+            this.player1 = player1;
+            this.player2 = player2;
+            this.ball1 = ball1;
+            this.ball2 = ball2;
+            this.dir1 = dir1;
+            this.dir2 = dir2;
+        }
+        public int[] getPlayers()
+        {
+            return new int[]{player1, player2};
+        }
+        public int[] getBallIDs()
+        {
+            return new int[]{ball1, ball2};
+        }
+        public Quaternion[] getDirections()
+        {
+            return new Quaternion[]{dir1, dir2};
         }
     }
 }

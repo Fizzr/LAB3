@@ -145,7 +145,7 @@ public class ClientMain extends SimpleApplication
             System.out.println(ball.getWorldTranslation().toString());
             if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
             {
-                ball.removeFromParent();
+                removeBall((Integer)ball.getUserData("player"), (Integer)ball.getUserData("ID"));
             }
         }
     }
@@ -292,8 +292,7 @@ public class ClientMain extends SimpleApplication
                     public Object call() throws Exception
                     {
                         Geometry cBall = geos.createcannonball(message.getRotation(), message.getTranslation());
-                        cannonballNode.attachChild(cBall);
-                        playerBallList.get(message.getPlayer()).add(message.getBallID(), cBall);
+                        addBall(cBall, message.getBallID(), message.getPlayer());
                         return true;
                     }
                 });
@@ -307,22 +306,38 @@ public class ClientMain extends SimpleApplication
                     {
                         //Move can
                         canNode.getChild(message.getHitCan()).setLocalTranslation(message.getNewTranslation());
-                        //Remove ball from cannonballNode
-                        //A for loop checking ID because shootMessages might come out of order!
-                        List<Spatial> playerBalls = playerBallList.get(message.getPlayer());
-                        for (int i = 0; i < playerBalls.size(); i++)
-                        {
-                            if((Integer) playerBalls.get(i).getUserData("ID") == message.getBallID())
-                            {
-                                playerBalls.get(i).removeFromParent();
-                                playerBalls.remove(i);
-                            }
-                        }
+                        removeBall(message.getPlayer(), message.getBallID());
                         //SCORE PLAYER??
                         return true;
                     }
                 });
             }
+            if (m instanceof CollisionMessage)
+            {
+                final CollisionMessage message = (CollisionMessage) m;
+                Future result = ClientMain.this.enqueue(new Callable()
+                {
+                    public Object call() throws Exception
+                    {
+                        int[] players = message.getPlayers();
+                        int[] ballIDs = message.getBallIDs();
+                        Quaternion[] directions = message.getDirections();
+                        for (int i = 0; i < players.length; i++)
+                        {
+                            List<Spatial> balls = playerBallList.get(players[i]);
+                            int ballID = ballIDs[i];
+                            for (Spatial ball : balls)
+                            {
+                                if((Integer) ball.getUserData("ID") == ballID)
+                                {
+                                    ball.rotate(directions[i]);
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                });
+            };
         }
     }
 
@@ -351,8 +366,7 @@ public class ClientMain extends SimpleApplication
                     if (STATE == Util.CLIENT_PLAYIING && playerBallList.get(playerIndex).size() <= Util.MAX_CANNONBALL)
                     {
                         Geometry cBall = geos.createcannonball(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation());
-                        cannonballNode.attachChild(cBall);
-                        playerBallList.get(playerIndex).add(shotIndex, cBall); 
+                        addBall(cBall, shotIndex, playerIndex); 
                         client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
                         shotIndex++;
                     }
@@ -407,5 +421,25 @@ public class ClientMain extends SimpleApplication
             client.close();
         }
         super.destroy();
+    }
+    
+    private void addBall(Geometry cBall, int ID, int pIndex)
+    {
+        cBall.setUserData("ID", ID);
+        cBall.setUserData("player", pIndex);
+        cannonballNode.attachChild(cBall);
+        playerBallList.get(pIndex).add(cBall);
+    }
+    private void removeBall(int pIndex, int ballID)
+    {
+        List<Spatial> playerBalls = playerBallList.get(pIndex);
+                        for (int i = 0; i < playerBalls.size(); i++)
+                        {
+                            if((Integer) playerBalls.get(i).getUserData("ID") == ballID)
+                            {
+                                playerBalls.get(i).removeFromParent();
+                                playerBalls.remove(i);
+                            }
+                        }
     }
 }

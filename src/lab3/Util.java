@@ -105,6 +105,7 @@ public class Util
         Serializer.registerClass(ShootMessage.class);
         Serializer.registerClass(CansMessage.class);
         Serializer.registerClass(HitMessage.class);
+        Serializer.registerClass(CollisionMessage.class);
 
     }
 }
