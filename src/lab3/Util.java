@@ -106,6 +106,7 @@ public class Util
         Serializer.registerClass(CansMessage.class);
         Serializer.registerClass(HitMessage.class);
         Serializer.registerClass(CollisionMessage.class);
+        Serializer.registerClass(WinnerMessage.class);
 
     }
 }
@@ -113,9 +114,9 @@ public class Util
 
 /* 
  * TODO:
- * Remove players and balls from scene when disconnecting
+ * Remove players and balls from scene when disconnecting (Don't reaaaally have to)
  * Scoring players
  * Basic rotation and subsequent messages
  * Check Håkans requirements heh...heh...
- * Move scene so it centers origo!
+ * Seperate responsibility in guiNode. So some can be culled, and others not!
  */

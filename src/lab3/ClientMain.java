@@ -53,12 +53,13 @@ public class ClientMain extends SimpleApplication
 
     private ConcurrentLinkedQueue<String> messageQueue;
     /*
-     * Below Queue solves issue of not being able to index balls arriving from
+     * playerBallList solves the issue of not being able to index balls arriving from
      * different players simultaneously. Now each player indexes their own shots
      * and thus we can keep a correct and consistent index over all clients.
+     * Note: if we define it later we can use the correct amount of player, isntead of MAX 
      */
-    private List<List<Spatial>> playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS);
-    private List<String> playerNames;
+    private List<List<Spatial>> playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS); 
+    private String[] playerNames;
     private Client client;
     private Node canNode = new Node("cans");
     private Node playingfieldNode = new Node("Playingfield");
@@ -139,15 +140,21 @@ public class ClientMain extends SimpleApplication
 
     public void simpleUpdate(float tpf)
     {
-        for (Spatial ball : cannonballNode.getChildren())
+        if(STATE == Util.CLIENT_PLAYIING)
         {
-            ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
-            System.out.println(ball.getWorldTranslation().toString());
-            if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
+            time -= tpf;
+            for (Spatial ball : cannonballNode.getChildren())
             {
-                removeBall((Integer)ball.getUserData("player"), (Integer)ball.getUserData("ID"));
+                ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
+                System.out.println(ball.getWorldTranslation().toString());
+                if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
+                {
+                    removeBall((Integer)ball.getUserData("player"), (Integer)ball.getUserData("ID"));
+                }
             }
         }
+        if(time < 0)
+            time = 0;
     }
 
     private void newMatch()
@@ -263,8 +270,8 @@ public class ClientMain extends SimpleApplication
                     {
                         playerNames = message.getPlayerNames();
                         playerIndex = message.getIndex();
-                        float fractal = FastMath.TWO_PI / playerNames.size();
-                        for (int i = 0; i < playerNames.size(); i++)
+                        float fractal = FastMath.TWO_PI / playerNames.length;
+                        for (int i = 0; i < playerNames.length; i++)
                         {
                             Node cannon = geos.createCannon();
                             cannon.rotate(0, fractal * i, 0);
@@ -337,7 +344,28 @@ public class ClientMain extends SimpleApplication
                         return true;
                     }
                 });
-            };
+            }
+             if (m instanceof WinnerMessage)
+            {
+                final WinnerMessage message = (WinnerMessage) m;
+                Future result = ClientMain.this.enqueue(new Callable()
+                {
+                    public Object call() throws Exception
+                    {
+                        guiNode.setCullHint(Spatial.CullHint.Inherit);
+                        int winner = message.getWinner();
+                        if(winner == -1)
+                        {
+                            setInfo("DRAW!");
+                        }
+                        else
+                        {
+                            setInfo(""+playerNames[winner]+" WINS!");
+                        }
+                        return true;
+                    }
+                });
+            }
         }
     }
 
@@ -390,7 +418,6 @@ public class ClientMain extends SimpleApplication
     };
     private AnalogListener analogListener = new AnalogListener()
     {
-        //"cuboidLeanBack", "cuboidLeanForward", "sphereShrinkRay", "sphereEnlargmentRay")
         public void onAnalog(String name, float value, float tpf)
         {
             if (time > 0 && STATE == Util.CLIENT_PLAYIING)

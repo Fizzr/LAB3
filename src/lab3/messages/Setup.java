@@ -7,7 +7,6 @@ package lab3.messages;
 import com.jme3.math.Vector3f;
 import com.jme3.network.AbstractMessage;
 import com.jme3.network.serializing.Serializable;
-import com.jme3.scene.Node;
 import java.util.List;
 
 /**
@@ -48,17 +47,17 @@ public class Setup
     @Serializable
     public static class StartMessage extends AbstractMessage
     {
-        List<String> playerNames;
+        String[] playerNames;
         int index;
         public StartMessage()
         {
         }
-        public StartMessage(List<String> playerNames, int index)
+        public StartMessage(String[] playerNames, int index)
         {
             this.playerNames = playerNames;
             this.index = index;
         }
-        public List<String> getPlayerNames()
+        public String[] getPlayerNames()
         {
             return this.playerNames;
         }

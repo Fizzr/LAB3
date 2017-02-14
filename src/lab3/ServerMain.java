@@ -4,6 +4,7 @@
  */
 package lab3;
 
+import com.bulletphysics.collision.broadphase.BroadphaseInterface;
 import com.jme3.app.SimpleApplication;
 import com.jme3.collision.CollisionResults;
 import com.jme3.math.FastMath;
@@ -61,6 +62,8 @@ public class ServerMain extends SimpleApplication
     private int STATE = Util.SERVER_IDLE;
     private Random rand = new Random();
     private boolean set = false;
+    private float time;
+    private int[] score;
     
     private int temp = 0;
 
@@ -171,14 +174,34 @@ public class ServerMain extends SimpleApplication
     @Override
     public void simpleUpdate(float tpf)
     {
+        if(time < 0 && cannonballNode.getChildren().isEmpty())
+        {
+            int highestScore = 0;
+            Integer winnerID = -1;
+            for(int i = 0; i < score.length; i++)
+            {
+                if(score[i] > highestScore)
+                {
+                    highestScore = score[i];
+                    winnerID = i;
+                }
+                else if(score[i] == highestScore)
+                    winnerID = -1;
+            }
+            server.broadcast(new WinnerMessage(winnerID));
+        }
         if (STATE == Util.SERVER_PLAYING)
         {
-            List<List<Integer>> collisionControl = new ArrayList<List<Integer>>(readyPlayers);
-            for(int i = 0; i < collisionControl.size(); i++)
+            time -= tpf;
+            List<List<Integer>> collisionControl = new ArrayList<List<Integer>>();
+            for(int i = 0; i < readyPlayers; i++)
                 collisionControl.add(new ArrayList<Integer>(Util.MAX_CANNONBALL));
-            
+            System.out.println(collisionControl.size());
+
             for (Spatial ball : cannonballNode.getChildren())
             {
+                int player = (Integer)ball.getUserData("player");
+                int ballID = (Integer)ball.getUserData("ID");
                 ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
                 if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
                 {
@@ -186,14 +209,19 @@ public class ServerMain extends SimpleApplication
                     continue;
                 }
                 
-                /* Check whether the given ball has already collided with something this update */
+                /* Check whether the given ball has already collided with something this update 
+                 There is some potential for FUCKUP here, if two balls collide with the same third ball during the same
+                 * update cycle. The next two collision updates might get fucked from this! (since the balls might be far
+                 * enough into each other by this time that they collide twice, but the second time the directions will be 
+                 * completely unnatural for a collision...
+                 */
                 boolean run = true;
-                List<Integer> IDList = collisionControl.get((Integer)ball.getUserData("player"));
+                List<Integer> IDList = collisionControl.get(player);
                 if(IDList.size() > 0)
                 {
                     for(int ID : IDList)
                     {
-                        if(ID == (Integer) ball.getUserData("ID"))
+                        if(ID == ballID)
                             run = false;
                     }
                 }
@@ -208,16 +236,25 @@ public class ServerMain extends SimpleApplication
                     if(results.size() > 0)
                     {
                         Geometry hit = results.getClosestCollision().getGeometry();
+                        Vector3f dirVec1 = ball.getWorldRotation().getRotationColumn(2);
+                        Vector3f dirVec2 = hit.getWorldRotation().getRotationColumn(2);
                         Vector3f contact = hit.getWorldTranslation();
                         Vector3f normal = ball.getWorldTranslation().subtract(contact).normalize();
-                        Quaternion dir = new Quaternion();
-                        dir.lookAt(normal, Vector3f.UNIT_Y);
-                        ball.rotate(dir);
-                        hit.rotate(dir.inverse());
-                        server.broadcast(new CollisionMessage((Integer)ball.getUserData("player"), (Integer)ball.getUserData("ID"), (Integer)hit.getUserData("player"), (Integer)hit.getUserData("ID"), dir, dir.inverse()));
+                        Vector3f invertedNormal = normal.negate();
+                        Vector3f flippedDir1 = dirVec1.subtract(normal.mult((2* dirVec1.dot(normal))/(float)Math.pow(normal.length(), 2)));
+                        Vector3f flippedDir2 = dirVec2.subtract(invertedNormal.mult((2*dirVec2.dot(invertedNormal))/(float)Math.pow(invertedNormal.length(), 2)));
+                        Quaternion quatDir1 = new Quaternion();
+                        Quaternion quatDir2 = new Quaternion();
+                        quatDir1.lookAt(flippedDir1, Vector3f.UNIT_Y);
+                        quatDir2.lookAt(flippedDir2, Vector3f.UNIT_Y);
+                        ball.rotate(quatDir1);
+                        hit.rotate(quatDir2);
+                        int player2 = (Integer)hit.getUserData("player");
+                        int ball2ID = (Integer)hit.getUserData("ID");
+                        server.broadcast(new CollisionMessage(player, ballID, player2, ball2ID, quatDir1, quatDir2));
                         print("ball collide!");
                         print("Normal: " + normal.toString());
-                        collisionControl.get((Integer)hit.getUserData("player")).add((Integer)hit.getUserData("ID"));
+                        collisionControl.get(player2).add(ball2ID);
                     }
                 }
                 results = new CollisionResults();
@@ -230,7 +267,8 @@ public class ServerMain extends SimpleApplication
                     hit.setLocalTranslation(0, (Float) hit.getUserData("height") / 2, 0);
                     hit.rotate(0, 0, rand.nextFloat() * FastMath.TWO_PI);
                     hit.move(hit.getLocalRotation().getRotationColumn(0).mult(rand.nextFloat() * (Util.PLAYINGFIELD_RADIUS - Util.SAFETY_MARGIN)));
-                    server.broadcast(new HitMessage((Integer) ball.getUserData("player"), canNode.getChildIndex(hit), hit.getLocalTranslation(), (Integer) ball.getUserData("ID")));
+                    server.broadcast(new HitMessage(player, canNode.getChildIndex(hit), hit.getLocalTranslation(), ballID));
+                    score[player] += value;
                     ball.removeFromParent();
                 }
             }
@@ -298,19 +336,24 @@ public class ServerMain extends SimpleApplication
             if (m instanceof ShootMessage)
             {
                 print(source.getId() + " Shooting");
-                final ShootMessage message = (ShootMessage) m;
-                server.broadcast(Filters.notEqualTo(source), message);
-                Future result = ServerMain.this.enqueue(new Callable()
+                if(time > 0)
                 {
-                    public Object call() throws Exception
+                    final ShootMessage message = (ShootMessage) m;
+                    server.broadcast(Filters.notEqualTo(source), message);
+                    Future result = ServerMain.this.enqueue(new Callable()
                     {
-                        Spatial ball = geos.createcannonball(message.getRotation(), message.getTranslation());
-                        ball.setUserData("player", message.getPlayer());
-                        ball.setUserData("ID", message.getBallID());
-                        cannonballNode.attachChild(ball);
-                        return true;
-                    }
-                });
+                        public Object call() throws Exception
+                        {
+                            Spatial ball = geos.createcannonball(message.getRotation(), message.getTranslation());
+                            ball.setUserData("player", message.getPlayer());
+                            ball.setUserData("ID", message.getBallID());
+                            cannonballNode.attachChild(ball);
+                            return true;
+                        }
+                    });
+                }
+                else
+                    print("Too late!");
             }
         }
     }
@@ -508,13 +551,18 @@ public class ServerMain extends SimpleApplication
     public void startGame()
     {
         STATE = Util.SERVER_PLAYING;
-        
-        List<String> playerNames = new ArrayList<String>();
-        
-        float fractal = FastMath.TWO_PI / server.getConnections().size();
-        for (int i = 0; i < server.getConnections().size(); i++)
+        time = 30;
+        score = new int[readyPlayers];
+        for (int i = 0; i < score.length; i++)
         {
-            playerNames.add(String.valueOf(server.getConnection(i).getId()));
+            score[i] = 0;
+        }
+        String[] playerNames = new String[readyPlayers];
+        
+        float fractal = FastMath.TWO_PI / readyPlayers;
+        for (int i = 0; i < readyPlayers; i++)
+        {
+            playerNames[i] = String.valueOf(server.getConnection(i).getId());
             Node cannon = geos.createCannon();
             cannon.rotate(0, fractal * i, 0);
             cannon.move(cannon.getLocalRotation().getRotationColumn(2).mult(Util.PLAYINGFIELD_RADIUS));

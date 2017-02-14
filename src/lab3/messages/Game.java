@@ -166,4 +166,18 @@ public class Game
             return new Quaternion[]{dir1, dir2};
         }
     }
+    @Serializable
+    public static class WinnerMessage extends AbstractMessage
+    {
+        private int winner;
+        public WinnerMessage (){}
+        public WinnerMessage (int winnerPlayer)
+        {
+            this.winner = winnerPlayer;
+        }
+        public int getWinner()
+        {
+            return this.winner;
+        }
+    }
 }
