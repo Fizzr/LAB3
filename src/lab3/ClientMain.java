@@ -59,6 +59,9 @@ public class ClientMain extends SimpleApplication
      * Note: if we define it later we can use the correct amount of player, isntead of MAX 
      */
     private List<List<Spatial>> playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS); 
+    private List<RotateMessage> rotateMessageList = new ArrayList<RotateMessage>();
+    private boolean[] rotateConvergence;
+    private float rotateUpdate = Util.ROTATE_UPDATE;
     private String[] playerNames;
     private Client client;
     private Node canNode = new Node("cans");
@@ -66,7 +69,13 @@ public class ClientMain extends SimpleApplication
     private Node players = new Node("Enemies");
     private Node player;
     private Node cannonballNode = new Node("Cannonballs");
+    private Node guiMenu = new Node("Gui Menu");
+    private Node scoreGuiNode = new Node("Score GUI");
+    private Node timeNode = new Node("timeGui");
+    private BitmapText scoreGui;
     private BitmapText info;
+    private BitmapText timeGui;
+    private int[] score;
     private float time = 30f;
     private CreateGeos geos;
     private boolean ready = false;
@@ -101,9 +110,19 @@ public class ClientMain extends SimpleApplication
         info = new BitmapText(guiFont, false);
         info.setSize(guiFont.getCharSet().getRenderedSize() * 1.5f);
         setInfo("Connecting...");
-        guiNode.attachChild(BG);
-        guiNode.attachChild(info);
-        rootNode.attachChild(guiNode);
+        guiMenu.attachChild(BG);
+        guiMenu.attachChild(info);
+        scoreGui = new BitmapText(guiFont, false);
+        scoreGui.setText("Hej");
+        scoreGui.setLocalTranslation(10, settings.getHeight()-10-guiFont.getCharSet().getLineHeight(), 1);
+        scoreGuiNode.attachChild(scoreGui);
+        timeGui = new BitmapText(guiFont, false);
+        timeGui.setText(String.valueOf(time));
+        timeGui.setLocalTranslation(10, settings.getHeight()-10, 1);
+        timeNode.attachChild(timeGui);
+        guiNode.attachChild(timeNode);
+        guiNode.attachChild(guiMenu);
+        guiNode.attachChild(scoreGuiNode);
         newMatch();
         connectToServer();
         inputInit();
@@ -143,10 +162,34 @@ public class ClientMain extends SimpleApplication
         if(STATE == Util.CLIENT_PLAYIING)
         {
             time -= tpf;
+            rotateUpdate -= tpf;
+            if(rotateUpdate < 0)
+            {
+                if(rotateMessageList.size() > 0)
+                {
+                    client.send(rotateMessageList.get(rotateMessageList.size()-1));
+                    rotateMessageList.clear();
+                    rotateUpdate = Util.ROTATE_UPDATE;
+                }
+            }
+            for(int i = 0; i < rotateConvergence.length; i++)
+            {
+                Spatial cannon = players.getChild(i);
+                if (i == playerIndex)
+                    continue;
+                if(rotateConvergence[i])
+                {
+                    cannon.rotate(0, tpf*2*(Integer)cannon.getUserData("special"), 0);
+                    if(time <= (Float) cannon.getUserData("time"))
+                        rotateConvergence[i] = false;
+                }
+                else
+                    cannon.rotate(0, tpf*(Integer)cannon.getUserData("rotateDirection"), 0);
+            }
+            
             for (Spatial ball : cannonballNode.getChildren())
             {
                 ball.move(ball.getLocalRotation().getRotationColumn(2).mult(tpf * Util.CANNONBALL_SPEED));
-                System.out.println(ball.getWorldTranslation().toString());
                 if (ball.getWorldTranslation().distance(playingfieldNode.getWorldTranslation()) > Util.PLAYINGFIELD_RADIUS + Util.DEAD_MARGIN)
                 {
                     removeBall((Integer)ball.getUserData("player"), (Integer)ball.getUserData("ID"));
@@ -154,14 +197,16 @@ public class ClientMain extends SimpleApplication
             }
         }
         if(time < 0)
-            time = 0;
+            timeGui.setText("0");
+        else
+            timeGui.setText(String.valueOf(time));
+
     }
 
     private void newMatch()
     {
         //Set everything to default values. Somewhat redundant, but easy (I dont remember why I do this, but too lazy to find out)
         rootNode.detachAllChildren();
-        rootNode.attachChild(guiNode);
         rootNode.attachChild(geos.createcannonball(Quaternion.ZERO, Vector3f.ZERO));
         playerBallList = new ArrayList<List<Spatial>>(Util.MAX_PLAYERS);
         for (int i = 0; i < Util.MAX_PLAYERS; i++)
@@ -197,7 +242,7 @@ public class ClientMain extends SimpleApplication
             {
                 STATE = Util.CLIENT_DISCONNECTED;
                 setInfo(info.reason);
-                guiNode.setCullHint(Spatial.CullHint.Inherit);
+                guiMenu.setCullHint(Spatial.CullHint.Inherit);
                 client = null;
             }
         }
@@ -212,7 +257,7 @@ public class ClientMain extends SimpleApplication
             {
                 client.send(new AliveMessage());
             }
-            if (m instanceof ConnectionMessage)
+            else if (m instanceof ConnectionMessage)
             {
                 ConnectionMessage message = (ConnectionMessage) m;
                 if (message.getConnect())
@@ -227,7 +272,7 @@ public class ClientMain extends SimpleApplication
                     STATE = Util.CLIENT_DISCONNECTED;
                 }
             }
-            if (m instanceof CansMessage)
+            else if (m instanceof CansMessage)
             {
                 final CansMessage message = (CansMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
@@ -246,7 +291,7 @@ public class ClientMain extends SimpleApplication
                     }
                 });
             }
-            if (m instanceof ReadyMessage)
+            else if (m instanceof ReadyMessage)
             {
                 if (STATE == Util.CLIENT_WAITING && ready)
                 {
@@ -261,7 +306,7 @@ public class ClientMain extends SimpleApplication
                     });
                 }
             }
-            if (m instanceof StartMessage)
+            else if (m instanceof StartMessage)
             {
                 final StartMessage message = (StartMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
@@ -269,6 +314,8 @@ public class ClientMain extends SimpleApplication
                     public Object call() throws Exception
                     {
                         playerNames = message.getPlayerNames();
+                        score = new int[playerNames.length];
+                        rotateConvergence = new boolean[playerNames.length];
                         playerIndex = message.getIndex();
                         float fractal = FastMath.TWO_PI / playerNames.length;
                         for (int i = 0; i < playerNames.length; i++)
@@ -277,6 +324,7 @@ public class ClientMain extends SimpleApplication
                             cannon.rotate(0, fractal * i, 0);
                             cannon.move(cannon.getLocalRotation().getRotationColumn(2).mult(Util.PLAYINGFIELD_RADIUS));
                             cannon.move(0, 0.1f, 0);
+                            cannon.setUserData("rotateDirection", 0);
                             if (i == playerIndex)
                             {
                                 player = cannon;
@@ -286,12 +334,13 @@ public class ClientMain extends SimpleApplication
                             players.attachChild(cannon);
                         }
                         STATE = Util.CLIENT_PLAYIING;
-                        guiNode.setCullHint(Spatial.CullHint.Always); 
+                        updateScore();
+                        guiMenu.setCullHint(Spatial.CullHint.Always); 
                        return true;
                     }
                 });
             }
-            if (m instanceof ShootMessage)
+            else if (m instanceof ShootMessage)
             {
                 final ShootMessage message = (ShootMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
@@ -304,7 +353,7 @@ public class ClientMain extends SimpleApplication
                     }
                 });
             }
-            if (m instanceof HitMessage)
+            else if (m instanceof HitMessage)
             {
                 final HitMessage message = (HitMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
@@ -312,14 +361,17 @@ public class ClientMain extends SimpleApplication
                     public Object call() throws Exception
                     {
                         //Move can
-                        canNode.getChild(message.getHitCan()).setLocalTranslation(message.getNewTranslation());
+                        Spatial can = canNode.getChild(message.getHitCan());
+                        can.setLocalTranslation(message.getNewTranslation());
                         removeBall(message.getPlayer(), message.getBallID());
                         //SCORE PLAYER??
+                        score[message.getPlayer()] += (Integer) can.getUserData("value");
+                        updateScore();
                         return true;
                     }
                 });
             }
-            if (m instanceof CollisionMessage)
+            else if (m instanceof CollisionMessage)
             {
                 final CollisionMessage message = (CollisionMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
@@ -345,14 +397,14 @@ public class ClientMain extends SimpleApplication
                     }
                 });
             }
-             if (m instanceof WinnerMessage)
+            else if (m instanceof WinnerMessage)
             {
                 final WinnerMessage message = (WinnerMessage) m;
                 Future result = ClientMain.this.enqueue(new Callable()
                 {
                     public Object call() throws Exception
                     {
-                        guiNode.setCullHint(Spatial.CullHint.Inherit);
+                        guiMenu.setCullHint(Spatial.CullHint.Inherit);
                         int winner = message.getWinner();
                         if(winner == -1)
                         {
@@ -361,6 +413,67 @@ public class ClientMain extends SimpleApplication
                         else
                         {
                             setInfo(""+playerNames[winner]+" WINS!");
+                        }
+                        return true;
+                    }
+                });
+            }
+            else if (m instanceof  RotateMessage)
+            {
+                final RotateMessage message = (RotateMessage) m;
+                Future result = ClientMain.this.enqueue(new Callable()
+                {
+                    public Object call() throws Exception
+                    {
+                        int playerID = message.getPlayer();
+                        Spatial cannon = players.getChild(playerID);
+                        Vector3f currentDirVector = cannon.getLocalRotation().getRotationColumn(2);
+                        Vector3f rotateStartVector = message.getStartRotation().getRotationColumn(2);
+                        double d = Math.atan2(rotateStartVector.z, rotateStartVector.x) - Math.atan2(currentDirVector.z, currentDirVector.x);
+                        float angle = (float) d; //Varför funkar det att casta här men inte linjen ovanför???? .^.
+                        cannon.setUserData("rotateDirection", message.getDirection());
+                        if(Math.abs(angle) < 0.1)
+                        {
+                            cannon.setLocalRotation(message.getStartRotation());
+                            rotateConvergence[playerID] = false;
+                        }
+                        else if(angle < 0)  //We're currently to the LEFT of where we should be
+                        {
+                            rotateConvergence[playerID] = true;
+                            switch(message.getDirection())
+                            {
+                                case -1:    //and we want to turn left
+                                    cannon.setUserData("special", 0);
+                                    cannon.setUserData("time", time-angle);
+                                    break;
+                                case 0:     //and we want to stay still
+                                    cannon.setUserData("special", 1);
+                                    cannon.setUserData("time", time-(angle/2));
+                                    break;
+                                case 1:     //and we want to turn right
+                                    cannon.setUserData("special", 1);
+                                    cannon.setUserData("time", time-angle);
+                                    break;
+                            }
+                        }
+                        else if(angle > 0)  //We're currently to the RIGHT
+                        {
+                            rotateConvergence[playerID] = true;
+                            switch(message.getDirection())
+                            {
+                                case -1:    //and we want to turn left
+                                    cannon.setUserData("special", -1);
+                                    cannon.setUserData("time", time-angle);
+                                    break;
+                                case 0:     //and we want to stay still
+                                    cannon.setUserData("special", -1);
+                                    cannon.setUserData("time", time-(angle/2));
+                                    break;
+                                case 1:     //and we want to turn right
+                                    cannon.setUserData("special", 0);
+                                    cannon.setUserData("time", time-angle);
+                                    break;
+                            }
                         }
                         return true;
                     }
@@ -377,41 +490,54 @@ public class ClientMain extends SimpleApplication
         inputManager.addMapping("fire", new KeyTrigger(KeyInput.KEY_SPACE));
         inputManager.addMapping("enter", new KeyTrigger(KeyInput.KEY_RETURN));
 
-        inputManager.addListener(actionListener, "toggleLaser", "fire", "enter");
+        inputManager.addListener(actionListener, "toggleLaser", "fire", "enter", "turnLeft", "turnRight");
         inputManager.addListener(analogListener, "turnLeft", "turnRight");
     }
     private ActionListener actionListener = new ActionListener()
     {
         public void onAction(String name, boolean keyPressed, float tpf)
         {
-            if (keyPressed && time > 0)
+            if(time > 0)
             {
-                if (name == "toggleLaser" && STATE == Util.CLIENT_PLAYIING)
+                if (keyPressed)
                 {
-                    player.getChild("laser").setCullHint((player.getChild("laser").getCullHint() == Spatial.CullHint.Dynamic) ? Spatial.CullHint.Always : Spatial.CullHint.Dynamic);
-                } else if (name == "fire")
-                {
-                    if (STATE == Util.CLIENT_PLAYIING && playerBallList.get(playerIndex).size() <= Util.MAX_CANNONBALL)
+                    if (name == "toggleLaser" && STATE == Util.CLIENT_PLAYIING)
                     {
-                        Geometry cBall = geos.createcannonball(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation());
-                        addBall(cBall, shotIndex, playerIndex); 
-                        client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
-                        shotIndex++;
+                        player.getChild("laser").setCullHint((player.getChild("laser").getCullHint() == Spatial.CullHint.Dynamic) ? Spatial.CullHint.Always : Spatial.CullHint.Dynamic);
+                    } else if (name == "fire")
+                    {
+                        if (STATE == Util.CLIENT_PLAYIING && playerBallList.get(playerIndex).size() <= Util.MAX_CANNONBALL)
+                        {
+                            Geometry cBall = geos.createcannonball(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation());
+                            addBall(cBall, shotIndex, playerIndex); 
+                            client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
+                            shotIndex++;
+                        }
+                    } else if (name == "enter")
+                    {
+                        if (STATE == Util.CLIENT_WAITING && !ready)
+                        {
+                            ready = true;
+                            client.send(new ReadyMessage());
+                        } else if (STATE == Util.CLIENT_DISCONNECTED)
+                        {
+                            BGmat.setColor("Color", ColorRGBA.Orange);
+                            setInfo("Retrying");
+                            connectToServer();
+                        }
                     }
-                } else if (name == "enter")
-                {
-                    if (STATE == Util.CLIENT_WAITING && !ready)
+                    else if(name == "turnLeft")
                     {
-                        ready = true;
-                        System.out.println("entered");
-                        client.send(new ReadyMessage());
-                        System.out.println("entered2");
-                    } else if (STATE == Util.CLIENT_DISCONNECTED)
-                    {
-                        BGmat.setColor("Color", ColorRGBA.Orange);
-                        setInfo("Retrying");
-                        connectToServer();
+                        rotateMessageList.add(new RotateMessage(-1, player.getLocalRotation(), playerIndex));
                     }
+                    else if(name == "turnRight")
+                    {
+                        rotateMessageList.add(new RotateMessage(1, player.getLocalRotation(), playerIndex));
+                    }
+                }
+                else if(name == "turnLeft" || name == "turnRight")
+                {
+                    rotateMessageList.add(new RotateMessage(0, player.getLocalRotation(), playerIndex));
                 }
             }
         }
@@ -437,6 +563,15 @@ public class ClientMain extends SimpleApplication
     {
         info.setText(message);
         info.setLocalTranslation(settings.getWidth() / 2 - info.getLineWidth() / 2, settings.getHeight() / 2 - info.getLineHeight() / 2, 0);
+    }
+    private void updateScore()
+    {
+        String text = "Score: \n";
+        for(int i = 0; i < score.length; i++)
+        {
+            text+= playerNames[i] +": "+ score[i] + "\n";
+        }
+        scoreGui.setText(text);
     }
 
     @Override

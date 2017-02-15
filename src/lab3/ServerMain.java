@@ -174,24 +174,24 @@ public class ServerMain extends SimpleApplication
     @Override
     public void simpleUpdate(float tpf)
     {
-        if(time < 0 && cannonballNode.getChildren().isEmpty())
-        {
-            int highestScore = 0;
-            Integer winnerID = -1;
-            for(int i = 0; i < score.length; i++)
-            {
-                if(score[i] > highestScore)
-                {
-                    highestScore = score[i];
-                    winnerID = i;
-                }
-                else if(score[i] == highestScore)
-                    winnerID = -1;
-            }
-            server.broadcast(new WinnerMessage(winnerID));
-        }
         if (STATE == Util.SERVER_PLAYING)
         {
+            if(time < 0 && cannonballNode.getChildren().isEmpty())
+            {
+                int highestScore = 0;
+                Integer winnerID = -1;
+                for(int i = 0; i < score.length; i++)
+                {
+                    if(score[i] > highestScore)
+                    {
+                        highestScore = score[i];
+                        winnerID = i;
+                    }
+                    else if(score[i] == highestScore)
+                        winnerID = -1;
+                }
+                server.broadcast(new WinnerMessage(winnerID));
+            }
             time -= tpf;
             List<List<Integer>> collisionControl = new ArrayList<List<Integer>>();
             for(int i = 0; i < readyPlayers; i++)
@@ -354,6 +354,10 @@ public class ServerMain extends SimpleApplication
                 }
                 else
                     print("Too late!");
+            }
+            if(m instanceof RotateMessage)
+            {
+                server.broadcast(Filters.notEqualTo(source), m);
             }
         }
     }

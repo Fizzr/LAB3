@@ -180,4 +180,30 @@ public class Game
             return this.winner;
         }
     }
+    @Serializable
+    public static class RotateMessage extends AbstractMessage
+    {
+        private int dir;
+        private Quaternion startRot;
+        private int player;
+        public RotateMessage(){}
+        public RotateMessage(int direction, Quaternion startRotate, int player)
+        {
+            dir = direction;
+            startRot = startRotate;
+            this.player = player;
+        }
+        public int getDirection()
+        {
+            return dir;
+        }
+        public Quaternion getStartRotation()
+        {
+            return startRot;
+        }
+        public int getPlayer()
+        {
+            return player;
+        }
+    }
 }

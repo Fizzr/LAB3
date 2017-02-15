@@ -29,6 +29,7 @@ public class Util
     public static final Vector3f ROTATE_Y = new Vector3f(ZERO, ONE, ZERO);
     public static final Vector3f ROTATE_Z = new Vector3f(ZERO, ZERO, ONE);
     public static final float START_TIME = 30f;
+    public static final float ROTATE_UPDATE = 0.5f;
     //PLAYINGFIELD
     public static final int PLAYINGFIELD_RESOLUTION = 100;
     public static final float PLAYINGFIELD_RADIUS = 200f;
@@ -107,7 +108,7 @@ public class Util
         Serializer.registerClass(HitMessage.class);
         Serializer.registerClass(CollisionMessage.class);
         Serializer.registerClass(WinnerMessage.class);
-
+        Serializer.registerClass(RotateMessage.class);
     }
 }
 
@@ -115,8 +116,6 @@ public class Util
 /* 
  * TODO:
  * Remove players and balls from scene when disconnecting (Don't reaaaally have to)
- * Scoring players
  * Basic rotation and subsequent messages
  * Check Håkans requirements heh...heh...
- * Seperate responsibility in guiNode. So some can be culled, and others not!
  */
