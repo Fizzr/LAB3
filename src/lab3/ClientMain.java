@@ -437,39 +437,45 @@ public class ClientMain extends SimpleApplication
                             cannon.setLocalRotation(message.getStartRotation());
                             rotateConvergence[playerID] = false;
                         }
-                        else if(angle < 0)  //We're currently to the LEFT of where we should be
+                        else if(angle > 0)  //We're currently to the LEFT of where we should be
                         {
                             rotateConvergence[playerID] = true;
                             switch(message.getDirection())
                             {
                                 case -1:    //and we want to turn left
+                                    System.out.println("Left - Left");
                                     cannon.setUserData("special", 0);
                                     cannon.setUserData("time", time-angle);
                                     break;
                                 case 0:     //and we want to stay still
-                                    cannon.setUserData("special", 1);
+                                    System.out.println("Left - Stay");
+                                    cannon.setUserData("special", -1);
                                     cannon.setUserData("time", time-(angle/2));
                                     break;
                                 case 1:     //and we want to turn right
-                                    cannon.setUserData("special", 1);
+                                    System.out.println("Left - Right");
+                                    cannon.setUserData("special", -1);
                                     cannon.setUserData("time", time-angle);
                                     break;
                             }
                         }
-                        else if(angle > 0)  //We're currently to the RIGHT
+                        else if(angle < 0)  //We're currently to the RIGHT
                         {
                             rotateConvergence[playerID] = true;
                             switch(message.getDirection())
                             {
                                 case -1:    //and we want to turn left
-                                    cannon.setUserData("special", -1);
+                                    System.out.println("Right - Left");
+                                    cannon.setUserData("special", 1);
                                     cannon.setUserData("time", time-angle);
                                     break;
                                 case 0:     //and we want to stay still
-                                    cannon.setUserData("special", -1);
+                                    System.out.println("Right - Stay");
+                                    cannon.setUserData("special", 1);
                                     cannon.setUserData("time", time-(angle/2));
                                     break;
                                 case 1:     //and we want to turn right
+                                    System.out.println("Right - Right");
                                     cannon.setUserData("special", 0);
                                     cannon.setUserData("time", time-angle);
                                     break;
@@ -497,7 +503,7 @@ public class ClientMain extends SimpleApplication
     {
         public void onAction(String name, boolean keyPressed, float tpf)
         {
-            if(time > 0)
+            //if(time > 0)
             {
                 if (keyPressed)
                 {
@@ -528,11 +534,11 @@ public class ClientMain extends SimpleApplication
                     }
                     else if(name == "turnLeft")
                     {
-                        rotateMessageList.add(new RotateMessage(-1, player.getLocalRotation(), playerIndex));
+                        rotateMessageList.add(new RotateMessage(1, player.getLocalRotation(), playerIndex));
                     }
                     else if(name == "turnRight")
                     {
-                        rotateMessageList.add(new RotateMessage(1, player.getLocalRotation(), playerIndex));
+                        rotateMessageList.add(new RotateMessage(-1, player.getLocalRotation(), playerIndex));
                     }
                 }
                 else if(name == "turnLeft" || name == "turnRight")
@@ -546,7 +552,7 @@ public class ClientMain extends SimpleApplication
     {
         public void onAnalog(String name, float value, float tpf)
         {
-            if (time > 0 && STATE == Util.CLIENT_PLAYIING)
+            if (/*time > 0 &&*/ STATE == Util.CLIENT_PLAYIING)
             {
                 if (name == "turnLeft")
                 {

@@ -192,11 +192,10 @@ public class ServerMain extends SimpleApplication
                 }
                 server.broadcast(new WinnerMessage(winnerID));
             }
-            time -= tpf;
+            //time -= tpf;
             List<List<Integer>> collisionControl = new ArrayList<List<Integer>>();
             for(int i = 0; i < readyPlayers; i++)
                 collisionControl.add(new ArrayList<Integer>(Util.MAX_CANNONBALL));
-            System.out.println(collisionControl.size());
 
             for (Spatial ball : cannonballNode.getChildren())
             {
