@@ -503,7 +503,7 @@ public class ClientMain extends SimpleApplication
     {
         public void onAction(String name, boolean keyPressed, float tpf)
         {
-            //if(time > 0)
+            if(time > 0)
             {
                 if (keyPressed)
                 {
@@ -552,7 +552,7 @@ public class ClientMain extends SimpleApplication
     {
         public void onAnalog(String name, float value, float tpf)
         {
-            if (/*time > 0 &&*/ STATE == Util.CLIENT_PLAYIING)
+            if (time > 0 && STATE == Util.CLIENT_PLAYIING)
             {
                 if (name == "turnLeft")
                 {
