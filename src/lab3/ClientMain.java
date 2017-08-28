@@ -7,9 +7,16 @@ package lab3;
 import com.jme3.app.SimpleApplication;
 import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
+import com.jme3.input.RawInputListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.AnalogListener;
+import com.jme3.input.event.JoyAxisEvent;
+import com.jme3.input.event.JoyButtonEvent;
+import com.jme3.input.event.KeyInputEvent;
+import com.jme3.input.event.MouseButtonEvent;
+import com.jme3.input.event.MouseMotionEvent;
+import com.jme3.input.event.TouchEvent;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
@@ -72,9 +79,12 @@ public class ClientMain extends SimpleApplication
     private Node guiMenu = new Node("Gui Menu");
     private Node scoreGuiNode = new Node("Score GUI");
     private Node timeNode = new Node("timeGui");
+    private Node nameNode = new Node("nameField");
     private BitmapText scoreGui;
     private BitmapText info;
     private BitmapText timeGui;
+    private BitmapText nameText;
+    private String myName = "";
     private int[] score;
     private float time = 30f;
     private CreateGeos geos;
@@ -85,6 +95,87 @@ public class ClientMain extends SimpleApplication
     private int playerIndex;
     Material BGmat;
 
+    
+
+    public class rawInputListener implements RawInputListener
+    {
+
+        public void beginInput()
+        {    
+        }
+
+        public void endInput()
+        {
+        }
+
+        public void onJoyAxisEvent(JoyAxisEvent evt)
+        {
+        }
+
+        public void onJoyButtonEvent(JoyButtonEvent evt)
+        {
+        }
+
+        public void onMouseMotionEvent(MouseMotionEvent evt)
+        {
+            
+        }
+
+        public void onMouseButtonEvent(MouseButtonEvent evt)
+        {
+        }
+
+        public void onKeyEvent(KeyInputEvent evt)
+        {
+            if(!ready && evt.isPressed())
+            { 
+                boolean a = false;
+                int keyCode = evt.getKeyCode();
+                if(keyCode == KeyInput.KEY_BACK)
+                {
+                    myName = myName.substring(0, myName.length()-1);
+                    evt.setConsumed();
+                    a = true;
+                }
+                if (!a && keyCode == KeyInput.KEY_RETURN)
+                    {
+                        a = true;
+                        evt.setConsumed();
+                        if (STATE == Util.CLIENT_WAITING && !ready)
+                        {
+                            ready = true;
+                            client.send(new ReadyMessage());
+                        }
+                        else if (STATE == Util.CLIENT_DISCONNECTED)
+                        {
+                            BGmat.setColor("Color", ColorRGBA.Orange);
+                            setInfo("Retrying");
+                            connectToServer();
+                        }
+                    }
+
+                char c = evt.getKeyChar();
+                if(!a && c != 0)
+                {
+                    if(c == 27) // Esc is a character....                
+                        return;
+                    System.out.println("C: " + (int) c + " : " + keyCode);
+                    myName = myName + c;
+                    evt.setConsumed();
+                    a = true;
+                }
+                
+                System.out.println("Consumed: " + evt.isConsumed());
+                if(a)
+                    setName(myName);
+            }
+        }
+
+        public void onTouchEvent(TouchEvent evt)
+        {
+        }
+    }
+    
     public static void main(String[] args)
     {
         Util.initMessages();
@@ -101,28 +192,40 @@ public class ClientMain extends SimpleApplication
     public void simpleInitApp()
     {
         geos = new CreateGeos(assetManager);
+        
         Quad UIQuad = new Quad(settings.getWidth(), settings.getHeight());
         Geometry BG = new Geometry("start", UIQuad);
         BGmat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         BGmat.setColor("Color", ColorRGBA.Blue);
         BG.setMaterial(BGmat);
+        
         guiFont = assetManager.loadFont("Interface/Fonts/Default.fnt");
+        
         info = new BitmapText(guiFont, false);
         info.setSize(guiFont.getCharSet().getRenderedSize() * 1.5f);
         setInfo("Connecting...");
+        
+        nameText = new BitmapText(guiFont, false);
+        nameText.setSize(guiFont.getCharSet().getRenderedSize() * 1.5f);
+        
         guiMenu.attachChild(BG);
         guiMenu.attachChild(info);
+        guiMenu.attachChild(nameText);
+        
         scoreGui = new BitmapText(guiFont, false);
         scoreGui.setText("Hej");
         scoreGui.setLocalTranslation(10, settings.getHeight()-10-guiFont.getCharSet().getLineHeight(), 1);
         scoreGuiNode.attachChild(scoreGui);
+        
         timeGui = new BitmapText(guiFont, false);
         timeGui.setText(String.valueOf(time));
         timeGui.setLocalTranslation(10, settings.getHeight()-10, 1);
         timeNode.attachChild(timeGui);
+        
         guiNode.attachChild(timeNode);
         guiNode.attachChild(guiMenu);
         guiNode.attachChild(scoreGuiNode);
+        
         newMatch();
         connectToServer();
         inputInit();
@@ -496,6 +599,7 @@ public class ClientMain extends SimpleApplication
         inputManager.addMapping("fire", new KeyTrigger(KeyInput.KEY_SPACE));
         inputManager.addMapping("enter", new KeyTrigger(KeyInput.KEY_RETURN));
 
+        inputManager.addRawInputListener(new rawInputListener());
         inputManager.addListener(actionListener, "toggleLaser", "fire", "enter", "turnLeft", "turnRight");
         inputManager.addListener(analogListener, "turnLeft", "turnRight");
     }
@@ -503,7 +607,7 @@ public class ClientMain extends SimpleApplication
     {
         public void onAction(String name, boolean keyPressed, float tpf)
         {
-            if(time > 0)
+            if(time > 0 && STATE == Util.CLIENT_PLAYIING)
             {
                 if (keyPressed)
                 {
@@ -518,18 +622,6 @@ public class ClientMain extends SimpleApplication
                             addBall(cBall, shotIndex, playerIndex); 
                             client.send(new ShootMessage(player.getLocalRotation(), player.getChild("cannonballStartNode").getWorldTranslation(), shotIndex, client.getId()));
                             shotIndex++;
-                        }
-                    } else if (name == "enter")
-                    {
-                        if (STATE == Util.CLIENT_WAITING && !ready)
-                        {
-                            ready = true;
-                            client.send(new ReadyMessage());
-                        } else if (STATE == Util.CLIENT_DISCONNECTED)
-                        {
-                            BGmat.setColor("Color", ColorRGBA.Orange);
-                            setInfo("Retrying");
-                            connectToServer();
                         }
                     }
                     else if(name == "turnLeft")
@@ -565,6 +657,13 @@ public class ClientMain extends SimpleApplication
         }
     };
 
+    private void setName(String message)
+    {
+        nameText.setText(message);
+        nameText.setLocalTranslation(settings.getWidth() / 2 - nameText.getLineWidth() / 2, settings.getHeight() / 2 + nameText.getLineHeight() / 2, 0);
+    }
+
+    
     private void setInfo(String message)
     {
         info.setText(message);
