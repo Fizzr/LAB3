@@ -19,12 +19,14 @@ public class Setup
     @Serializable
     public static class ReadyMessage extends AbstractMessage
     {
-
+        private String name;
         private int ready;
         private int total;
-
-        public ReadyMessage()
+        public ReadyMessage(){}
+        
+        public ReadyMessage(String name)
         {
+            this.name = name;
         }
 
         public ReadyMessage(int ready, int total)
@@ -41,6 +43,10 @@ public class Setup
         public int getTotalPlayers()
         {
             return this.total;
+        }
+        public String getName()
+        {
+            return this.name;
         }
     }
 

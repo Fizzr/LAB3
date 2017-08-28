@@ -29,6 +29,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
@@ -64,6 +66,7 @@ public class ServerMain extends SimpleApplication
     private boolean set = false;
     private float time;
     private int[] score;
+    private String[] playerNames;
     
     private int temp = 0;
 
@@ -316,12 +319,21 @@ public class ServerMain extends SimpleApplication
             }
             if (m instanceof ReadyMessage)
             {
+                ReadyMessage message = (ReadyMessage) m;
                 if ((Boolean) source.getAttribute("ready") == false)
                 {
                     print(source.getId() + " is ready!");
                     readyPlayers++;
+                    source.setAttribute("name", message.getName());
+                    /*String[] names = new String[readyPlayers];
+                    for(int i = 0; i < readyPlayers -1; i++)
+                    {
+                        names[i] = playerNames[i];
+                    }
+                    names[readyPlayers-1] = message.getName()
+                    */
                     source.setAttribute("ready", true);
-
+                    
                     if (readyPlayers == server.getConnections().size())
                     {
                         startGame();
@@ -560,8 +572,15 @@ public class ServerMain extends SimpleApplication
         {
             score[i] = 0;
         }
-        String[] playerNames = new String[readyPlayers];
-        
+        playerNames = new String[readyPlayers];
+        Iterator<HostedConnection> a = server.getConnections().iterator();
+        HostedConnection b;
+        int j = 0;
+        while((b = a.next()) != null)
+        {
+            playerNames[j] = b.getAttribute("name");
+            j++;
+        }
         float fractal = FastMath.TWO_PI / readyPlayers;
         for (int i = 0; i < readyPlayers; i++)
         {

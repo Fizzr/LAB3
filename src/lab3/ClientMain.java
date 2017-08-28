@@ -128,10 +128,10 @@ public class ClientMain extends SimpleApplication
         public void onKeyEvent(KeyInputEvent evt)
         {
             if(!ready && evt.isPressed())
-            { 
+            {
                 boolean a = false;
                 int keyCode = evt.getKeyCode();
-                if(keyCode == KeyInput.KEY_BACK)
+                if(keyCode == KeyInput.KEY_BACK && myName.length() > 0)
                 {
                     myName = myName.substring(0, myName.length()-1);
                     evt.setConsumed();
@@ -144,7 +144,7 @@ public class ClientMain extends SimpleApplication
                         if (STATE == Util.CLIENT_WAITING && !ready)
                         {
                             ready = true;
-                            client.send(new ReadyMessage());
+                            client.send(new ReadyMessage(myName));
                         }
                         else if (STATE == Util.CLIENT_DISCONNECTED)
                         {
