@@ -601,13 +601,13 @@ public class ClientMain extends SimpleApplication
     private void removeBall(int pIndex, int ballID)
     {
         List<Spatial> playerBalls = playerBallList.get(pIndex);
-                        for (int i = 0; i < playerBalls.size(); i++)
-                        {
-                            if((Integer) playerBalls.get(i).getUserData("ID") == ballID)
-                            {
-                                playerBalls.get(i).removeFromParent();
-                                playerBalls.remove(i);
-                            }
-                        }
+        for (int i = 0; i < playerBalls.size(); i++)
+        {
+            if((Integer) playerBalls.get(i).getUserData("ID") == ballID)
+            {
+                playerBalls.get(i).removeFromParent();
+                playerBalls.remove(i);
+            }
+        }
     }
 }
